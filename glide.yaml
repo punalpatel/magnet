@@ -1,0 +1,3 @@
+package: "github.com/pivotalservices/magnet"
+import:
+- package: github.com/vmware/govmomi
