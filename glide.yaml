@@ -2,3 +2,5 @@ package: github.com/pivotalservices/magnet
 import:
 - package: github.com/vmware/govmomi
   version: ^0.8.0
+- package: github.com/kelseyhightower/envconfig
+  version: ^1.1.0
