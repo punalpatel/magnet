@@ -1,22 +1,28 @@
-hash: 56b793468136d51f14ecd0e44f955f1c402c073c63e827472d6d9f8d1359686b
-updated: 2016-07-31T10:23:29.305678011-04:00
+hash: 69cb147a74456c48258fa7689b47d1e43eee742795499e14af23eb277c0d1816
+updated: 2016-08-02T16:48:08.013282329-07:00
 imports:
+- name: github.com/kelseyhightower/envconfig
+  version: ac12b1f15efba734211a556d8b125110dc538016
 - name: github.com/vmware/govmomi
-  version: 3de168d71c170aa71193183da59356da57f97c6d
+  version: c0c7ce63df7edd78e713257b924c89d9a2dac119
   subpackages:
+  - find
+  - list
+  - object
   - property
   - session
+  - task
+  - units
   - vim25
-  - vim25/soap
-  - vim25/types
+  - vim25/debug
   - vim25/methods
   - vim25/mo
-  - vim25/debug
   - vim25/progress
+  - vim25/soap
+  - vim25/types
   - vim25/xml
 - name: golang.org/x/net
   version: 3797cd8864994d713d909eda5e61ede8683fdc12
-  repo: https://go.googlesource.com/net
   subpackages:
   - context
-devImports: []
+testImports: []

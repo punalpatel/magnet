@@ -3,3 +3,4 @@ concourse.yml
 .vagrant/
 Vagrantfile
 iaas.md
+env.sh
