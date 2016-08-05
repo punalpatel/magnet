@@ -54,26 +54,6 @@ resources:
     repository: magnet
     access_token: {{github-access-token}}
 
-- name: staging
-  type: cf
-  source:
-    api: https://api.run.pivotal.io
-    organization: {{cf-org}}
-    username: {{cf-username}}
-    password: {{cf-password}}
-    skip_cert_check: false
-    space: butler-staging
-
-- name: production
-  type: cf
-  source:
-    api: https://api.run.pivotal.io
-    organization: {{cf-org}}
-    username: {{cf-username}}
-    password: {{cf-password}}
-    skip_cert_check: false
-    space: butler-production
-
 jobs:
 - name: unit
   plan:
