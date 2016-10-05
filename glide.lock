@@ -1,18 +1,19 @@
-hash: 69cb147a74456c48258fa7689b47d1e43eee742795499e14af23eb277c0d1816
-updated: 2016-08-02T16:48:08.013282329-07:00
+hash: 694635e14e7a21ec751b3819abfbd92d610db9d2d5e132168c5967df20a08ea8
+updated: 2016-10-05T11:52:45.59323952-06:00
 imports:
 - name: github.com/kelseyhightower/envconfig
   version: ac12b1f15efba734211a556d8b125110dc538016
-- name: github.com/vmware/govmomi
-  version: c0c7ce63df7edd78e713257b924c89d9a2dac119
+- name: github.com/onsi/ginkgo
+  version: 43e2af1f01ace55adbb6d7d0f30416476db1baae
   subpackages:
-  - find
-  - list
-  - object
+  - ginkgo
+- name: github.com/onsi/gomega
+  version: c90bd38f8da6e92f8b114953db2f0ad7361fb4b4
+- name: github.com/vmware/govmomi
+  version: f9184c1d704efa615d419dd8d1dae1ade94701d1
+  subpackages:
   - property
   - session
-  - task
-  - units
   - vim25
   - vim25/debug
   - vim25/methods
@@ -21,8 +22,4 @@ imports:
   - vim25/soap
   - vim25/types
   - vim25/xml
-- name: golang.org/x/net
-  version: 3797cd8864994d713d909eda5e61ede8683fdc12
-  subpackages:
-  - context
 testImports: []
