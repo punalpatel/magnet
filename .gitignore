@@ -5,3 +5,5 @@ Vagrantfile
 iaas.md
 env.sh
 env.md
+debug
+magnet
