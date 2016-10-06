@@ -17,24 +17,22 @@ func (d *Daemon) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	err := Check(ctx, d.IaaS)
+	err := d.Poll(ctx)
 	if err != nil {
 		return err
 	}
 
-	ticker := time.NewTicker(10 * time.Second)
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)
 	for {
 		select {
 		case <-ctx.Done():
-			ticker.Stop()
 			err = ctx.Err()
 			if err == context.Canceled {
 				return nil
 			}
 			return err
-		case <-ticker.C:
+		case <-time.After(5 * time.Minute):
 			ctx2, cancel2 := context.WithTimeout(ctx, 60*time.Second)
 			defer cancel2()
 			d.Poll(ctx2)
