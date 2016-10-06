@@ -47,12 +47,10 @@ func (v *IaaS) Connect() error {
 		return err
 	}
 
-	if c.IsVC() {
-		fmt.Printf("Connected to %s\n", v.config.HostAndPort())
-	} else {
+	if !c.IsVC() {
 		return fmt.Errorf("%s is not a vCenter", v.config.HostAndPort())
 	}
-
+	fmt.Println("Connected to", v.config.HostAndPort())
 	return nil
 }
 
@@ -70,6 +68,16 @@ func (v *IaaS) Rules() ([]magnet.Rule, error) {
 	return nil, nil
 }
 
+// New creates an IaaS that connects to the vCenter API.
+// It is configured with the following environment variables:
+//   - VSPHERE_SCHEME        (default https)
+//   - VSPHERE_HOSTNAME      (required)
+//   - VSPHERE_PORT          (default 443)
+//   - VSPHERE_USERNAME      (required)
+//   - VSPHERE_PASSWORD      (required)
+//   - VSPHERE_INSECURE      (default false)
+//   - VSPHERE_CLUSTER       (required)
+//   - VSPHERE_RESOURCE_POOL (default "")
 func New() (magnet.IaaS, error) {
 	var config vsphereconfig
 	err := envconfig.Process("vsphere", &config)

@@ -18,26 +18,25 @@ func (d *Daemon) Run(ctx context.Context) error {
 		return err
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	ticker := time.NewTicker(5 * time.Second)
+	defer cancel()
+	ticker := time.NewTicker(2 * time.Second)
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)
-	cancelled := make(chan bool)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				cancelled <- true
-			case <-ticker.C:
-				Check(d.IaaS)
-			case <-c:
-				cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			ticker.Stop()
+			err = ctx.Err()
+			if err == context.Canceled {
+				return nil
 			}
+			return err
+		case <-ticker.C:
+			Check(d.IaaS)
+		case <-c:
+			cancel()
 		}
-	}()
-	<-cancelled
-
-	return nil
+	}
 }
 
 func Check(iaas IaaS) {
