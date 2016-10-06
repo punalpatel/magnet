@@ -1,11 +1,16 @@
 package magnet
 
+import "context"
+
 type IaaS interface {
-	Connect() error
-	IsConnected() bool
-	Jobs() ([]Job, error)
-	VMs() ([]VM, error)
-	Rules() ([]Rule, error)
+	State(ctx context.Context) (*State, error)
+	Converge(ctx context.Context, state *State) error
+}
+
+type State struct {
+	Hosts []Host
+	VMs   []VM
+	Rules []Rule
 }
 
 type VM struct {
@@ -51,15 +56,6 @@ type Job struct {
 // 	"github.com/vmware/govmomi/vim25/mo"
 // 	"github.com/vmware/govmomi/vim25/types"
 // )
-//
-// type vsphereconfig struct {
-// 	Scheme   string `default:"https"`
-// 	Hostname string `required:"true"`
-// 	Port     string `default:"443"`
-// 	Username string `required:"true"`
-// 	Password string `required:"true"`
-// 	Insecure bool   `default:"false"`
-// }
 //
 // func (c *vsphereconfig) HostAndPort() string {
 // 	if c.Scheme == "http" && c.Port != "80" {

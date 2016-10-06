@@ -36,35 +36,23 @@ func (c *vsphereconfig) HostAndPort() string {
 type IaaS struct {
 	URL    *url.URL
 	config *vsphereconfig
+	client *govmomi.Client
 }
 
-func (v *IaaS) Connect() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	fmt.Printf("Connected to %s\n", v.URL.String())
-	c, err := govmomi.NewClient(ctx, v.URL, v.config.Insecure)
-	if err != nil {
-		return err
-	}
-
-	if !c.IsVC() {
-		return fmt.Errorf("%s is not a vCenter", v.config.HostAndPort())
-	}
-	fmt.Println("Connected to", v.config.HostAndPort())
+func (i *IaaS) Converge(ctx context.Context, state *magnet.State) error {
 	return nil
 }
 
-func (v *IaaS) IsConnected() bool {
-	return true
-}
-
-func (v *IaaS) Jobs() ([]magnet.Job, error) {
-	return nil, nil
-}
-func (v *IaaS) VMs() ([]magnet.VM, error) {
-	return nil, nil
-}
-func (v *IaaS) Rules() ([]magnet.Rule, error) {
+func (i *IaaS) State(ctx context.Context) (*magnet.State, error) {
+	c, err := govmomi.NewClient(ctx, i.URL, i.config.Insecure)
+	if err != nil {
+		return nil, err
+	}
+	i.client = c
+	if !i.client.IsVC() {
+		return nil, fmt.Errorf("%s is not a vCenter", i.config.HostAndPort())
+	}
+	fmt.Println("Connected to", i.config.HostAndPort())
 	return nil, nil
 }
 
@@ -90,11 +78,11 @@ func New() (magnet.IaaS, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := &IaaS{URL: parsed, config: &config}
-	return v, nil
+	i := &IaaS{URL: parsed, config: &config}
+	return i, nil
 }
 
-func (v *IaaS) Datacenters() (*[]Datacenter, error) {
+func (i *IaaS) Datacenters() (*[]Datacenter, error) {
 	return nil, nil
 }
 
