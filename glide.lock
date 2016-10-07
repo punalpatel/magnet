@@ -1,14 +1,40 @@
 hash: 694635e14e7a21ec751b3819abfbd92d610db9d2d5e132168c5967df20a08ea8
-updated: 2016-10-06T10:43:24.011938759-06:00
+updated: 2016-10-07T13:12:04.667041748-06:00
 imports:
 - name: github.com/kelseyhightower/envconfig
   version: ac12b1f15efba734211a556d8b125110dc538016
 - name: github.com/onsi/ginkgo
-  version: 45a5f6ffb2a14e4f29698c16ae4c0a34018a8951
+  version: acfa16ac8e9e0d2c6b11cfe78c79d8652c3ee3fd
   subpackages:
+  - config
   - ginkgo
+  - internal/codelocation
+  - internal/containernode
+  - internal/failer
+  - internal/leafnodes
+  - internal/remote
+  - internal/spec
+  - internal/specrunner
+  - internal/suite
+  - internal/testingtproxy
+  - internal/writer
+  - reporters
+  - reporters/stenographer
+  - types
 - name: github.com/onsi/gomega
   version: d59fa0ac68bb5dd932ee8d24eed631cdd519efc3
+  subpackages:
+  - format
+  - internal/assertion
+  - internal/asyncassertion
+  - internal/oraclematcher
+  - internal/testingtsupport
+  - matchers
+  - matchers/support/goraph/bipartitegraph
+  - matchers/support/goraph/edge
+  - matchers/support/goraph/node
+  - matchers/support/goraph/util
+  - types
 - name: github.com/vmware/govmomi
   version: f9184c1d704efa615d419dd8d1dae1ade94701d1
   subpackages:
@@ -22,4 +48,10 @@ imports:
   - vim25/soap
   - vim25/types
   - vim25/xml
-testImports: []
+testImports:
+- name: golang.org/x/sys
+  version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
+  subpackages:
+  - unix
+- name: gopkg.in/yaml.v2
+  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
