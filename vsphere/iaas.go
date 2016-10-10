@@ -62,41 +62,41 @@ func (i *IaaS) State(ctx context.Context) (*magnet.State, error) {
 	return i.state(ctx, c)
 }
 
-func (z *collector) hydrate(ctx context.Context, c *govmomi.Client) {
-	if len(z.dcRefs) > 0 {
-		c.PropertyCollector().Retrieve(ctx, z.dcRefs, nil, &z.dcs)
-		for _, dc := range z.dcs {
+func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
+	if len(c.dcRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.dcRefs, nil, &c.dcs)
+		for _, dc := range c.dcs {
 			fmt.Println("dc:", dc.Name)
 		}
 	}
-	if len(z.hostRefs) > 0 {
-		c.PropertyCollector().Retrieve(ctx, z.hostRefs, nil, &z.hosts)
-		for _, host := range z.hosts {
+	if len(c.hostRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.hostRefs, nil, &c.hosts)
+		for _, host := range c.hosts {
 			fmt.Println("host:", host.Name)
 		}
 	}
-	if len(z.vmRefs) > 0 {
-		c.PropertyCollector().Retrieve(ctx, z.vmRefs, nil, &z.vms)
-		for _, vm := range z.vms {
+	if len(c.vmRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.vmRefs, nil, &c.vms)
+		for _, vm := range c.vms {
 			fmt.Println("vm:", vm.Name)
 		}
 	}
-	if len(z.clusterRefs) > 0 {
-		c.PropertyCollector().Retrieve(ctx, z.clusterRefs, nil, &z.clusters)
-		for _, cluster := range z.clusters {
+	if len(c.clusterRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.clusterRefs, nil, &c.clusters)
+		for _, cluster := range c.clusters {
 			fmt.Println("cluster:", cluster.Name)
 		}
 	}
-	if len(z.rpRefs) > 0 {
+	if len(c.rpRefs) > 0 {
 		var rps []mo.ResourcePool
-		c.PropertyCollector().Retrieve(ctx, z.rpRefs, nil, &rps)
+		client.PropertyCollector().Retrieve(ctx, c.rpRefs, nil, &rps)
 		var retrieve func(rps []types.ManagedObjectReference)
 		retrieve = func(r []types.ManagedObjectReference) {
 			if len(r) == 0 {
 				return
 			}
 			var childrps []mo.ResourcePool
-			c.PropertyCollector().Retrieve(ctx, r, nil, &childrps)
+			client.PropertyCollector().Retrieve(ctx, r, nil, &childrps)
 			rps = append(rps, childrps...)
 		}
 		for _, rp := range rps {
@@ -105,40 +105,40 @@ func (z *collector) hydrate(ctx context.Context, c *govmomi.Client) {
 			}
 			retrieve(rp.ResourcePool)
 		}
-		z.rps = append(z.rps, rps...)
+		c.rps = append(c.rps, rps...)
 		for _, rp := range rps {
 			fmt.Println("rp:", rp.Name)
 		}
 	}
 
-	z.dcRefs = nil
-	z.hostRefs = nil
-	z.vmRefs = nil
-	z.clusterRefs = nil
-	z.rpRefs = nil
+	c.dcRefs = nil
+	c.hostRefs = nil
+	c.vmRefs = nil
+	c.clusterRefs = nil
+	c.rpRefs = nil
 }
 
-func (z *collector) enumerate(ctx context.Context, c *govmomi.Client, objs []object.Reference) {
+func (c *collector) enumerate(ctx context.Context, client *govmomi.Client, objs []object.Reference) {
 	for i := range objs {
 		ref := objs[i]
 		switch ref.Reference().Type {
 		case "Folder":
-			z.folderRefs = append(z.folderRefs, ref.Reference())
-			f := object.NewFolder(c.Client, ref.Reference())
+			c.folderRefs = append(c.folderRefs, ref.Reference())
+			f := object.NewFolder(client.Client, ref.Reference())
 			children, err := f.Children(ctx)
 			if err == nil {
-				z.enumerate(ctx, c, children)
+				c.enumerate(ctx, client, children)
 			}
 		case "VirtualMachine":
-			z.vmRefs = append(z.vmRefs, ref.Reference())
+			c.vmRefs = append(c.vmRefs, ref.Reference())
 		case "HostSystem":
-			z.hostRefs = append(z.hostRefs, ref.Reference())
+			c.hostRefs = append(c.hostRefs, ref.Reference())
 		case "ClusterComputeResource":
-			z.clusterRefs = append(z.clusterRefs, ref.Reference())
+			c.clusterRefs = append(c.clusterRefs, ref.Reference())
 		case "ResourcePool":
-			z.rpRefs = append(z.rpRefs, ref.Reference())
+			c.rpRefs = append(c.rpRefs, ref.Reference())
 		case "Datacenter":
-			z.dcRefs = append(z.dcRefs, ref.Reference())
+			c.dcRefs = append(c.dcRefs, ref.Reference())
 		}
 	}
 }
@@ -216,11 +216,11 @@ func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magne
 		})
 	}
 
-	return nil, nil
+	return state, nil
 }
 
-func (i *IaaS) state(ctx context.Context, c *govmomi.Client) (*magnet.State, error) {
-	f := find.NewFinder(c.Client, true)
+func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
+	f := find.NewFinder(client.Client, true)
 	collector := &collector{}
 	objects, err := f.DatacenterList(ctx, "*")
 	if err != nil {
@@ -228,15 +228,15 @@ func (i *IaaS) state(ctx context.Context, c *govmomi.Client) (*magnet.State, err
 	}
 	var refs []object.Reference
 	for _, dc := range objects {
-		refs = append(refs, object.NewReference(c.Client, dc.Reference()))
+		refs = append(refs, object.NewReference(client.Client, dc.Reference()))
 	}
 
-	collector.enumerate(ctx, c, refs)
-	collector.hydrate(ctx, c)
+	collector.enumerate(ctx, client, refs)
+	collector.hydrate(ctx, client)
 
 	for _, dc := range collector.dcs {
 		var dcrefs []object.Reference
-		d := object.NewDatacenter(c.Client, dc.Reference())
+		d := object.NewDatacenter(client.Client, dc.Reference())
 		f.SetDatacenter(d)
 		dcFolders, err := d.Folders(ctx)
 		if err != nil {
@@ -261,11 +261,11 @@ func (i *IaaS) state(ctx context.Context, c *govmomi.Client) (*magnet.State, err
 			return nil, err
 		}
 		dcrefs = append(dcrefs, children...)
-		collector.enumerate(ctx, c, dcrefs)
+		collector.enumerate(ctx, client, dcrefs)
 	}
 
-	collector.hydrate(ctx, c)
-	return collector.toState(ctx, c)
+	collector.hydrate(ctx, client)
+	return collector.toState(ctx, client)
 }
 
 // New creates an IaaS that connects to the vCenter API.
