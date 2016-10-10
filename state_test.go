@@ -65,7 +65,31 @@ var _ = Describe("State", func() {
 
 			Ω(magnet.Check(context.Background(), i)).Should(Succeed())
 			Ω(calledConverge).Should(BeTrue())
+		})
 
+		It("returns an error if it can't converge to the new state", func() {
+			i.StateFn = func(ctx context.Context) (*magnet.State, error) {
+				host1 := &magnet.Host{ID: "host1"}
+				host2 := &magnet.Host{ID: "host2"}
+
+				routerVM1 := &magnet.VM{Job: "router", Host: host1.ID}
+				routerVM2 := &magnet.VM{Job: "router", Host: host1.ID}
+
+				cellVM1 := &magnet.VM{Job: "diego_cell", Host: host2.ID}
+				cellVM2 := &magnet.VM{Job: "diego_cell", Host: host2.ID}
+
+				state := &magnet.State{
+					Hosts: []*magnet.Host{host1, host2},
+					VMs:   []*magnet.VM{routerVM1, routerVM2, cellVM1, cellVM2},
+				}
+				return state, nil
+			}
+
+			i.ConvergeFn = func(ctx context.Context, state *magnet.State) error {
+				return errors.New("couldn't converge")
+			}
+
+			Ω(magnet.Check(context.Background(), i)).ShouldNot(Succeed())
 		})
 	})
 
