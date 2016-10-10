@@ -15,7 +15,7 @@ func (m *IaaS) State(ctx context.Context) (*magnet.State, error) {
 	if m.StateFn != nil {
 		return m.StateFn(ctx)
 	}
-	return nil, nil
+	return &magnet.State{}, nil
 }
 
 func (m *IaaS) Converge(ctx context.Context, state *magnet.State) error {

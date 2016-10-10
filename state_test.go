@@ -24,7 +24,7 @@ var _ = Describe("State", func() {
 			gotState := false
 			i.StateFn = func(ctx context.Context) (*magnet.State, error) {
 				gotState = true
-				return nil, nil
+				return &magnet.State{}, nil
 			}
 			magnet.Check(context.Background(), i)
 			Ω(gotState).Should(BeTrue())
@@ -37,6 +37,35 @@ var _ = Describe("State", func() {
 			}
 			err := magnet.Check(context.Background(), i)
 			Ω(err).Should(Equal(noState))
+		})
+
+		It("attempts to converge an unbalanced state to a balanced one", func() {
+			i.StateFn = func(ctx context.Context) (*magnet.State, error) {
+				host1 := &magnet.Host{ID: "host1"}
+				host2 := &magnet.Host{ID: "host2"}
+
+				routerVM1 := &magnet.VM{Job: "router", Host: host1.ID}
+				routerVM2 := &magnet.VM{Job: "router", Host: host1.ID}
+
+				cellVM1 := &magnet.VM{Job: "diego_cell", Host: host2.ID}
+				cellVM2 := &magnet.VM{Job: "diego_cell", Host: host2.ID}
+
+				state := &magnet.State{
+					Hosts: []*magnet.Host{host1, host2},
+					VMs:   []*magnet.VM{routerVM1, routerVM2, cellVM1, cellVM2},
+				}
+				return state, nil
+			}
+
+			calledConverge := false
+			i.ConvergeFn = func(ctx context.Context, state *magnet.State) error {
+				calledConverge = true
+				return nil
+			}
+
+			Ω(magnet.Check(context.Background(), i)).Should(Succeed())
+			Ω(calledConverge).Should(BeTrue())
+
 		})
 	})
 

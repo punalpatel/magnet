@@ -14,23 +14,13 @@ func Check(ctx context.Context, i IaaS) error {
 		// Need to log this
 		return err
 	}
-	//
-	// if !IsBalanced(s) {
-	// 	s.PrintJobs(os.Stdout)
-	// 	expected := Balance(s)
-	// 	s.PrintDelta(expected)
-	// 	// Has anything actually changed?
-	// 	i.Converge(ctx, expected)
-	// 	s, err = i.State(ctx)
-	// 	if err != nil {
-	// 		// Need to log this
-	// 		return err
-	// 	}
-	// 	if !IsBalanced(s) {
-	// 		s.PrintJobs(os.Stdout)
-	// 	}
-	// }
-
+	if !IsBalanced(s) {
+		newState := Balance(s)
+		err = i.Converge(ctx, newState)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -73,7 +63,7 @@ func IsBalanced(s *State) bool {
 }
 
 func Balance(s *State) *State {
-	return nil
+	return s
 }
 
 func (s *State) PrintJobs(w io.Writer) {
