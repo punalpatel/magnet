@@ -2,57 +2,36 @@ package magnet
 
 import "context"
 
+// IaaS is an abstraction for a particular IaaS.
 type IaaS interface {
 	State(ctx context.Context) (*State, error)
 	Converge(ctx context.Context, state *State) error
 }
 
+// State represents the resources in a Cloud Foundry deployment.
 type State struct {
-	Clusters []*Cluster
-	Hosts    []*Host
-	VMs      []*VM
-	Rules    []*Rule
+	Hosts []*Host
+	VMs   []*VM
+	Rules []*Rule
 }
 
-type Cluster struct {
-	ID            string
-	Name          string
-	ResourcePools []*ResourcePool
-	Rules         []*Rule
-	VMs           []*VM
-}
-
-type ResourcePool struct {
-	ID       string
-	Name     string
-	Implicit bool
-}
-
+// VM is a virtual machine in a Cloud Foundry depoyment.
 type VM struct {
-	ID           string
-	Name         string
-	Host         string
-	Cluster      string
-	ResourcePool string
-	Job          string
+	Name string
+	ID   string
+	Host string
+	Job  string
 }
 
+// Host is a host in a Cloud Foundry deployment.
 type Host struct {
-	ID      string
-	Name    string
-	Cluster *Cluster
-	VMs     []*VM
+	Name string
+	ID   string
 }
 
 type Rule struct {
-	ID     string
 	Name   string
+	ID     string
 	Parent string
 	VMs    []*VM
-}
-
-type Job struct {
-	ID   string
-	Name string
-	VMs  []*VM
 }
