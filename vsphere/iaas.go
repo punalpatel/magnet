@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/pivotalservices/magnet"
@@ -62,31 +63,74 @@ func (i *IaaS) State(ctx context.Context) (*magnet.State, error) {
 	return i.state(ctx, c)
 }
 
-func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
-	if len(c.dcRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.dcRefs, nil, &c.dcs)
-		for _, dc := range c.dcs {
-			fmt.Println("dc:", dc.Name)
+func (c *collector) filter(cluster string, resourcepool string) {
+	var foundCluster *mo.ClusterComputeResource
+	for _, cl := range c.clusters {
+		if strings.EqualFold(cl.Name, cluster) {
+			foundCluster = &cl
 		}
 	}
-	if len(c.hostRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.hostRefs, nil, &c.hosts)
-		for _, host := range c.hosts {
-			fmt.Println("host:", host.Name)
+
+	if foundCluster == nil {
+		// TODO: This is invalid; but may result from the renaming of a cluster
+		panic("Cannot find cluster")
+	}
+
+	var implicitRp *mo.ResourcePool
+	var foundRp *mo.ResourcePool
+	for _, r := range c.rps {
+		if strings.EqualFold(r.Reference().String(), foundCluster.ResourcePool.Reference().String()) {
+			implicitRp = &r
 		}
 	}
-	if len(c.vmRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.vmRefs, nil, &c.vms)
+
+	if strings.TrimSpace(resourcepool) == "" {
+		foundRp = implicitRp
+	}
+	if strings.TrimSpace(resourcepool) == "" {
+		var filtered []mo.ResourcePool
+		var recurse func(rpRefs []types.ManagedObjectReference)
+		recurse = func(rpRefs []types.ManagedObjectReference) {
+			for _, r := range rpRefs {
+				for _, res := range c.rps {
+					if strings.EqualFold(r.String(), res.Reference().String()) {
+						filtered = append(filtered, res)
+						if res.ResourcePool != nil {
+							recurse(res.ResourcePool)
+						}
+					}
+				}
+			}
+		}
+		recurse(implicitRp.ResourcePool)
+		for _, r := range filtered {
+			if strings.EqualFold(r.Name, resourcepool) {
+				foundRp = &r
+			}
+		}
+
+		var vms []mo.VirtualMachine
 		for _, vm := range c.vms {
-			fmt.Println("vm:", vm.Name)
+			if vm.ResourcePool != nil && strings.EqualFold(vm.ResourcePool.String(), foundRp.Reference().String()) {
+				vms = append(vms, vm)
+			}
 		}
-	}
-	if len(c.clusterRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.clusterRefs, nil, &c.clusters)
-		for _, cluster := range c.clusters {
-			fmt.Println("cluster:", cluster.Name)
+
+		var hosts []mo.HostSystem
+		for _, host := range foundCluster.Host {
+			for _, h := range c.hosts {
+				if strings.EqualFold(host.String(), h.Reference().String()) {
+					hosts = append(hosts, h)
+				}
+			}
 		}
+
+		c.hosts = hosts
+		c.vms = vms
 	}
+}
+
+func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
 	if len(c.rpRefs) > 0 {
 		var rps []mo.ResourcePool
 		client.PropertyCollector().Retrieve(ctx, c.rpRefs, nil, &rps)
@@ -106,9 +150,19 @@ func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
 			retrieve(rp.ResourcePool)
 		}
 		c.rps = append(c.rps, rps...)
-		for _, rp := range rps {
-			fmt.Println("rp:", rp.Name)
-		}
+	}
+
+	if len(c.dcRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.dcRefs, nil, &c.dcs)
+	}
+	if len(c.hostRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.hostRefs, nil, &c.hosts)
+	}
+	if len(c.vmRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.vmRefs, nil, &c.vms)
+	}
+	if len(c.clusterRefs) > 0 {
+		client.PropertyCollector().Retrieve(ctx, c.clusterRefs, nil, &c.clusters)
 	}
 
 	c.dcRefs = nil
@@ -190,29 +244,18 @@ func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magne
 	state := &magnet.State{}
 	for _, vm := range c.vms {
 		v := &magnet.VM{
-			ID:      vm.Reference().String(),
-			Name:    vm.Name,
-			Host:    "",
-			Cluster: "",
+			ID:   vm.Reference().String(),
+			Name: vm.Name,
+			Host: "",
 
 			Job: jobForVM(&vm),
 		}
-		if vm.ResourcePool != nil {
-			v.ResourcePool = vm.ResourcePool.String()
-		}
-		debug(v)
 		state.VMs = append(state.VMs, v)
 	}
 	for _, host := range c.hosts {
 		state.Hosts = append(state.Hosts, &magnet.Host{
 			ID:   host.Reference().String(),
 			Name: host.Name,
-		})
-	}
-	for _, cluster := range c.clusters {
-		state.Clusters = append(state.Clusters, &magnet.Cluster{
-			ID:   cluster.Reference().String(),
-			Name: cluster.Name,
 		})
 	}
 
@@ -265,6 +308,16 @@ func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State
 	}
 
 	collector.hydrate(ctx, client)
+
+	fmt.Println("VMS BEFORE:")
+	for _, vm := range collector.vms {
+		fmt.Println(vm.Name)
+	}
+	collector.filter(i.config.Cluster, i.config.ResourcePool)
+	fmt.Println("VMS AFTER:")
+	for _, vm := range collector.vms {
+		fmt.Println(vm.Name)
+	}
 	return collector.toState(ctx, client)
 }
 
