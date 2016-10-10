@@ -28,18 +28,17 @@ type vsphereconfig struct {
 	ResourcePool string `default:""`
 }
 
-func (c *vsphereconfig) HostAndPort() string {
-
+func (c *vsphereconfig) hostAndPort() string {
 	if c.Scheme == "http" && c.Port != "80" {
 		return fmt.Sprintf("%s:%s", c.Hostname, c.Port)
 	}
 	if c.Scheme == "https" && c.Port != "443" {
 		return fmt.Sprintf("%s:%s", c.Hostname, c.Port)
 	}
-
 	return c.Hostname
 }
 
+// IaaS is the vSphere implementation of IaaS.
 type IaaS struct {
 	URL    *url.URL
 	config *vsphereconfig
@@ -57,9 +56,9 @@ func (i *IaaS) State(ctx context.Context) (*magnet.State, error) {
 	}
 	i.client = c
 	if !i.client.IsVC() {
-		return nil, fmt.Errorf("%s is not a vCenter", i.config.HostAndPort())
+		return nil, fmt.Errorf("%s is not a vCenter", i.config.hostAndPort())
 	}
-	fmt.Println("Connected to", i.config.HostAndPort())
+	fmt.Println("Connected to", i.config.hostAndPort())
 	return i.state(ctx, c)
 }
 
@@ -286,7 +285,7 @@ func New() (magnet.IaaS, error) {
 		return nil, err
 	}
 
-	uri := fmt.Sprintf("%s://%s:%s@%s/sdk", config.Scheme, url.QueryEscape(config.Username), url.QueryEscape(config.Password), config.HostAndPort())
+	uri := fmt.Sprintf("%s://%s:%s@%s/sdk", config.Scheme, url.QueryEscape(config.Username), url.QueryEscape(config.Password), config.hostAndPort())
 	parsed, err := url.Parse(uri)
 	if err != nil {
 		return nil, err

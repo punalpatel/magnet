@@ -2,11 +2,13 @@ package magnet
 
 import (
 	"context"
-	"io"
 	"log"
 	"math"
 )
 
+// Check gets the state of the deployment on the specified IaaS,
+// checks whether is it balanced, and attempts to rebalence
+// if necessary.
 func Check(ctx context.Context, i IaaS) error {
 	s, err := i.State(ctx)
 	_ = s
@@ -22,25 +24,6 @@ func Check(ctx context.Context, i IaaS) error {
 		}
 	}
 	return nil
-}
-
-type hostList []string
-
-func (h hostList) exceedsMax(hostCount int) bool {
-	totalJobs := len(h)
-	maxJobsPerHost := int(math.Ceil(float64(totalJobs) / float64(hostCount)))
-
-	counts := make(map[string]int)
-	for _, host := range h {
-		counts[host] = counts[host] + 1
-	}
-
-	for _, v := range counts {
-		if v > maxJobsPerHost {
-			return true
-		}
-	}
-	return false
 }
 
 // IsBalanced determines whether the state of a deployment is balanced.
@@ -62,14 +45,27 @@ func IsBalanced(s *State) bool {
 	return true
 }
 
+// Balance accepts an unbalanced state as input and produces a new
+// balanced state as output.
 func Balance(s *State) *State {
 	return s
 }
 
-func (s *State) PrintJobs(w io.Writer) {
+type hostList []string
 
-}
+func (h hostList) exceedsMax(hostCount int) bool {
+	totalJobs := len(h)
+	maxJobsPerHost := int(math.Ceil(float64(totalJobs) / float64(hostCount)))
 
-func (s *State) PrintDelta(s1 *State) {
+	counts := make(map[string]int)
+	for _, host := range h {
+		counts[host] = counts[host] + 1
+	}
 
+	for _, v := range counts {
+		if v > maxJobsPerHost {
+			return true
+		}
+	}
+	return false
 }

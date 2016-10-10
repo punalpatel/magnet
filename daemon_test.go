@@ -40,7 +40,9 @@ var _ = Describe("daemon tests", func() {
 			// a timeout is considered an error
 			Ω(err).Should(HaveOccurred())
 		})
+	})
 
+	Context("when Poll()ing a daemon", func() {
 		It("returns immediately if already running", func() {
 			count := 0
 			ctx, cancel := context.WithCancel(context.Background())

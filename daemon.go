@@ -8,11 +8,21 @@ import (
 	"time"
 )
 
+// Daemon wraps up the logic for periodically
+// checking and rebalancing a deployment.
 type Daemon struct {
 	IaaS    IaaS
 	running int32
 }
 
+// Run runs the main daemon loop.  It blocks until
+// one of the following conditions are met:
+//  - the context is cancelled
+//  - the process receives a SIGINT
+//
+// If the first check fails, Run terminates and returns
+// the error.  If subsequent checks fail, Run will
+// continue to poll the IaaS and will not return.
 func (d *Daemon) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -50,6 +60,8 @@ func (d *Daemon) stopRunning() {
 	atomic.StoreInt32(&d.running, 0)
 }
 
+// Poll is a wrapper for Check that ensures that multiple
+// invocations of Check won't run concurrently.
 func (d *Daemon) Poll(ctx context.Context) error {
 	if !d.startRunning() {
 		return nil
