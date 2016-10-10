@@ -2,8 +2,17 @@ package magnet
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"io"
 	"math"
+	"os"
+
+	"github.com/fatih/color"
+)
+
+var (
+	balancedIndicator   = color.GreenString("✓")
+	unbalancedIndicator = color.RedString("✗")
 )
 
 // Check gets the state of the deployment on the specified IaaS,
@@ -16,6 +25,7 @@ func Check(ctx context.Context, i IaaS) error {
 		// Need to log this
 		return err
 	}
+	PrintJobs(s, os.Stdout)
 	if !IsBalanced(s) {
 		newState := Balance(s)
 		err = i.Converge(ctx, newState)
@@ -29,20 +39,37 @@ func Check(ctx context.Context, i IaaS) error {
 // IsBalanced determines whether the state of a deployment is balanced.
 // A deployment is balanced jobs are spread across as many hosts as possible.
 func IsBalanced(s *State) bool {
-	hostCount := len(s.Hosts)
-
 	jobHosts := make(map[string]hostList)
 	for _, vm := range s.VMs {
 		jobHosts[vm.Job] = append(jobHosts[vm.Job], vm.Host)
 	}
 
-	for jobName, hosts := range jobHosts {
+	hostCount := len(s.Hosts)
+	for _, hosts := range jobHosts {
 		if hosts.exceedsMax(hostCount) {
-			log.Printf("job %s is not balanced", jobName)
 			return false
 		}
 	}
 	return true
+}
+
+func PrintJobs(s *State, w io.Writer) {
+	jobHosts := make(map[string]hostList)
+	for _, vm := range s.VMs {
+		jobHosts[vm.Job] = append(jobHosts[vm.Job], vm.Host)
+	}
+
+	hostCount := len(s.Hosts)
+	for jobName, hosts := range jobHosts {
+		isBalanced := !hosts.exceedsMax(hostCount)
+		var status string
+		if isBalanced {
+			status = balancedIndicator
+		} else {
+			status = unbalancedIndicator
+		}
+		fmt.Printf("%s  %s\n", status, jobName)
+	}
 }
 
 // Balance accepts an unbalanced state as input and produces a new

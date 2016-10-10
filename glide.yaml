@@ -10,3 +10,5 @@ import:
   - ginkgo
 - package: github.com/onsi/gomega
   version: master
+- package: github.com/fatih/color
+  version: ^1.0.0

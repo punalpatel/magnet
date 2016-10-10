@@ -1,6 +1,8 @@
-hash: 694635e14e7a21ec751b3819abfbd92d610db9d2d5e132168c5967df20a08ea8
-updated: 2016-10-07T13:12:04.667041748-06:00
+hash: b9009a4ca3f2053e35447e0b1333ea77981aeb2b635fb6d7f6f22598c0dda2d4
+updated: 2016-10-10T14:24:57.247952171-06:00
 imports:
+- name: github.com/fatih/color
+  version: 87d4004f2ab62d0d255e0a38f1680aa534549fe3
 - name: github.com/kelseyhightower/envconfig
   version: ac12b1f15efba734211a556d8b125110dc538016
 - name: github.com/onsi/ginkgo
@@ -38,8 +40,12 @@ imports:
 - name: github.com/vmware/govmomi
   version: f9184c1d704efa615d419dd8d1dae1ade94701d1
   subpackages:
+  - find
+  - list
+  - object
   - property
   - session
+  - task
   - vim25
   - vim25/debug
   - vim25/methods
