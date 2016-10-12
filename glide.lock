@@ -1,10 +1,14 @@
-hash: b9009a4ca3f2053e35447e0b1333ea77981aeb2b635fb6d7f6f22598c0dda2d4
-updated: 2016-10-10T14:24:57.247952171-06:00
+hash: d8d36114e38626a84d1cb1c85e2adfde2a7da1356b763bf021c8b86b82e1eef7
+updated: 2016-10-12T16:35:26.75373847-06:00
 imports:
 - name: github.com/fatih/color
   version: 87d4004f2ab62d0d255e0a38f1680aa534549fe3
 - name: github.com/kelseyhightower/envconfig
   version: ac12b1f15efba734211a556d8b125110dc538016
+- name: github.com/mattn/go-colorable
+  version: ed8eb9e318d7a84ce5915b495b7d35e0cfe7b5a8
+- name: github.com/mattn/go-isatty
+  version: 3a115632dcd687f9c8cd01679c83a06a0e21c1f3
 - name: github.com/onsi/ginkgo
   version: acfa16ac8e9e0d2c6b11cfe78c79d8652c3ee3fd
   subpackages:
@@ -54,10 +58,10 @@ imports:
   - vim25/soap
   - vim25/types
   - vim25/xml
-testImports:
 - name: golang.org/x/sys
   version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
   subpackages:
   - unix
+testImports:
 - name: gopkg.in/yaml.v2
   version: a5b47d31c556af34a302ce5d659e6fea44d90de0
