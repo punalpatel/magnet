@@ -1,5 +1,7 @@
 # magnet
 
+[![Build Status](https://concourse.pivotalservices.io/api/v1/teams/magnet/pipelines/magnet/jobs/unit/badge)](https://concourse.pivotalservices.io/teams/magnet/pipelines/magnet)
+
 ## Installation
 
 Dependencies are vendored with [Glide](https://github.com/Masterminds/glide)
@@ -31,5 +33,5 @@ export VSPHERE_HOSTNAME="localhost"
 export VSPHERE_USERNAME="administrator"
 export VSPHERE_PASSWORD="password"
 export VSPHERE_CLUSER="Cluster"
-export VSPHERE_RESOURCE_POOL="RP01"           # optional
+export VSPHERE_RESOURCEPOOL="RP01"           # optional
 ```
