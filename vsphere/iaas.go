@@ -81,14 +81,12 @@ func (c *collector) filter(cluster string, resourcepool string) {
 	for _, r := range c.rps {
 		if strings.EqualFold(r.Reference().String(), foundCluster.ResourcePool.Reference().String()) {
 			implicitRp = &r
-			//fmt.Printf("!! found implicit RP r=%s implicit=%s\n", r.Name, implicitRp.Name)
-			// break
+			break
 		}
 	}
-	//fmt.Printf("implicit RP is %s\n",implicitRp.Name)
 
 	var foundRp *mo.ResourcePool
-	if strings.TrimSpace(resourcepool) == "" {
+	if strings.TrimSpace(resourcepool) != "" {
 		foundRp = implicitRp
 		var filtered []mo.ResourcePool
 		var recurse func(rpRefs []types.ManagedObjectReference)
@@ -249,12 +247,15 @@ func jobForVM(vm *mo.VirtualMachine) string {
 func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
 	state := &magnet.State{}
 	for _, vm := range c.vms {
+		job := jobForVM(&vm)
+		if job == "" {
+			continue
+		}
 		v := &magnet.VM{
 			ID:   vm.Reference().String(),
 			Name: vm.Name,
 			Host: "",
-
-			Job: jobForVM(&vm),
+			Job: job,
 		}
 		state.VMs = append(state.VMs, v)
 	}
@@ -327,7 +328,7 @@ func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State
 //   - VSPHERE_PASSWORD      (required)
 //   - VSPHERE_INSECURE      (default false)
 //   - VSPHERE_CLUSTER       (required)
-//   - VSPHERE_RESOURCE_POOL (default "")
+//   - VSPHERE_RESOURCEPOOL (default "")
 func New() (magnet.IaaS, error) {
 	var config vsphereconfig
 	err := envconfig.Process("vsphere", &config)

@@ -1,0 +1,19 @@
+---
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: pcfsecurity/go-glide
+    tag: latest
+
+inputs:
+- name: magnet
+  path: go/src/github.com/pivotalservices/magnet
+
+outputs:
+- name: magnet-bits
+  path: stage
+
+run:
+  path: go/src/github.com/pivotalservices/magnet/ci/stage.sh

@@ -10,12 +10,11 @@ resources:
 - name: version
   type: semver
   source:
-    initial_version: 1.1.1
+    initial_version: 0.0.1
     driver: git
     uri: git@github.com:pivotalservices/magnet.git
     branch: version
     file: version
-
 
 - name: pr
   type: pull-request
