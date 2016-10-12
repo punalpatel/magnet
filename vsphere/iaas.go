@@ -68,6 +68,7 @@ func (c *collector) filter(cluster string, resourcepool string) {
 	for _, cl := range c.clusters {
 		if strings.EqualFold(cl.Name, cluster) {
 			foundCluster = &cl
+			break
 		}
 	}
 
@@ -77,17 +78,18 @@ func (c *collector) filter(cluster string, resourcepool string) {
 	}
 
 	var implicitRp *mo.ResourcePool
-	var foundRp *mo.ResourcePool
 	for _, r := range c.rps {
 		if strings.EqualFold(r.Reference().String(), foundCluster.ResourcePool.Reference().String()) {
 			implicitRp = &r
+			//fmt.Printf("!! found implicit RP r=%s implicit=%s\n", r.Name, implicitRp.Name)
+			// break
 		}
 	}
+	//fmt.Printf("implicit RP is %s\n",implicitRp.Name)
 
+	var foundRp *mo.ResourcePool
 	if strings.TrimSpace(resourcepool) == "" {
 		foundRp = implicitRp
-	}
-	if strings.TrimSpace(resourcepool) == "" {
 		var filtered []mo.ResourcePool
 		var recurse func(rpRefs []types.ManagedObjectReference)
 		recurse = func(rpRefs []types.ManagedObjectReference) {
@@ -106,12 +108,16 @@ func (c *collector) filter(cluster string, resourcepool string) {
 		for _, r := range filtered {
 			if strings.EqualFold(r.Name, resourcepool) {
 				foundRp = &r
+				break
 			}
 		}
 
 		var vms []mo.VirtualMachine
 		for _, vm := range c.vms {
-			if vm.ResourcePool != nil && strings.EqualFold(vm.ResourcePool.String(), foundRp.Reference().String()) {
+			if vm.ResourcePool != nil &&
+				strings.EqualFold(vm.ResourcePool.String(), foundRp.Reference().String()) &&
+				!strings.HasPrefix(vm.Name, "sc")  &&
+				!strings.HasPrefix(vm.Name, "tpl") {
 				vms = append(vms, vm)
 			}
 		}
@@ -308,16 +314,7 @@ func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State
 	}
 
 	collector.hydrate(ctx, client)
-
-	fmt.Println("VMS BEFORE:")
-	for _, vm := range collector.vms {
-		fmt.Println(vm.Name)
-	}
 	collector.filter(i.config.Cluster, i.config.ResourcePool)
-	fmt.Println("VMS AFTER:")
-	for _, vm := range collector.vms {
-		fmt.Println(vm.Name)
-	}
 	return collector.toState(ctx, client)
 }
 
