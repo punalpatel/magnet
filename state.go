@@ -41,7 +41,7 @@ func Check(ctx context.Context, i IaaS) error {
 func IsBalanced(s *State) bool {
 	jobHosts := make(map[string]hostList)
 	for _, vm := range s.VMs {
-		jobHosts[vm.Job] = append(jobHosts[vm.Job], vm.Host)
+		jobHosts[vm.Job] = append(jobHosts[vm.Job], vm.HostUUID)
 	}
 
 	hostCount := len(s.Hosts)
@@ -56,7 +56,7 @@ func IsBalanced(s *State) bool {
 func PrintJobs(s *State, w io.Writer) {
 	jobHosts := make(map[string]hostList)
 	for _, vm := range s.VMs {
-		jobHosts[vm.Job] = append(jobHosts[vm.Job], vm.Host)
+		jobHosts[vm.Job] = append(jobHosts[vm.Job], vm.HostUUID)
 	}
 
 	hostCount := len(s.Hosts)

@@ -141,14 +141,14 @@ func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State
 }
 
 type collector struct {
-	dcs       []mo.Datacenter
-	dcRefs    []types.ManagedObjectReference
-	hosts     []mo.HostSystem
-	hostRefs  []types.ManagedObjectReference
-	vms       []mo.VirtualMachine
-	vmRefs    []types.ManagedObjectReference
-	vmToHosts map[string]string
-
+	dcs         []mo.Datacenter
+	dcRefs      []types.ManagedObjectReference
+	hosts       []mo.HostSystem
+	hostRefs    []types.ManagedObjectReference
+	vms         []mo.VirtualMachine
+	vmRefs      []types.ManagedObjectReference
+	vmToHosts   map[string]string // vm reference to host UUID
+	hostnames   map[string]string // host UUID to hostname
 	clusters    []mo.ClusterComputeResource
 	clusterRefs []types.ManagedObjectReference
 	rps         []mo.ResourcePool
@@ -171,11 +171,13 @@ func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magne
 		if job == "" {
 			continue
 		}
+		uuid := c.vmToHosts[c.vms[i].Reference().Value]
 		v := &magnet.VM{
-			ID:   c.vms[i].Reference().String(),
-			Name: c.vms[i].Name,
-			Host: c.vmToHosts[c.vms[i].Reference().Value],
-			Job:  job,
+			ID:       c.vms[i].Reference().String(),
+			Name:     c.vms[i].Name,
+			HostUUID: uuid,
+			HostName: c.hostnames[uuid],
+			Job:      job,
 		}
 		state.VMs = append(state.VMs, v)
 	}
@@ -263,7 +265,7 @@ var (
 	dcProps = []string{"name", "hostFolder", "vmFolder"}
 
 	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.HostSystem.html
-	hostProps = []string{"name", "vm"}
+	hostProps = []string{"name", "vm", "hardware"}
 
 	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.VirtualMachine.html
 	vmProps = []string{"name", "value", "resourcePool", "availableField", "customValue"}
@@ -300,9 +302,12 @@ func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
 	if len(c.hostRefs) > 0 {
 		client.PropertyCollector().Retrieve(ctx, c.hostRefs, hostProps, &c.hosts)
 		c.vmToHosts = make(map[string]string)
+		c.hostnames = make(map[string]string)
 		for _, host := range c.hosts {
 			for _, vm := range host.Vm {
-				c.vmToHosts[vm.Reference().Value] = host.Reference().Value
+				uuid := host.Hardware.SystemInfo.Uuid
+				c.vmToHosts[vm.Reference().Value] = uuid
+				c.hostnames[uuid] = host.Name
 			}
 		}
 	}
