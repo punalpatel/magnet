@@ -17,11 +17,12 @@ type State struct {
 
 // VM is a virtual machine in a Cloud Foundry depoyment.
 type VM struct {
-	Name     string
-	ID       string
-	HostUUID string
-	HostName string
-	Job      string
+	Name      string
+	ID        string
+	HostUUID  string
+	HostName  string
+	Job       string
+	Reference string
 }
 
 // Host is a host in a Cloud Foundry deployment.
@@ -31,8 +32,9 @@ type Host struct {
 }
 
 type Rule struct {
-	Name   string
-	ID     string
-	Parent string
-	VMs    []*VM
+	Name      string
+	ID        string
+	Enabled   bool
+	Mandatory bool
+	VMs       []*VM
 }

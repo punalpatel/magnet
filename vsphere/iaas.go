@@ -166,6 +166,7 @@ func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magne
 		})
 	}
 
+	vmLookup := make(map[string]*magnet.VM)
 	for i := range c.vms {
 		job := jobForVM(&c.vms[i])
 		if job == "" {
@@ -173,13 +174,44 @@ func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magne
 		}
 		uuid := c.vmToHosts[c.vms[i].Reference().Value]
 		v := &magnet.VM{
-			ID:       c.vms[i].Reference().String(),
-			Name:     c.vms[i].Name,
-			HostUUID: uuid,
-			HostName: c.hostnames[uuid],
-			Job:      job,
+			ID:        c.vms[i].Config.Uuid,
+			Reference: c.vms[i].Self.Value,
+			Name:      c.vms[i].Name,
+			HostUUID:  uuid,
+			HostName:  c.hostnames[uuid],
+			Job:       job,
 		}
+		vmLookup[c.vms[i].Self.Value] = v
 		state.VMs = append(state.VMs, v)
+	}
+
+	for _, cluster := range c.clusters {
+		for _, rule := range cluster.Configuration.Rule {
+			aa, ok := rule.(*types.ClusterAntiAffinityRuleSpec)
+			if !ok {
+				continue
+			}
+
+			ptrToBool := func(b *bool) bool {
+				if b == nil {
+					return false
+				}
+				return *b
+			}
+			rule := &magnet.Rule{
+				Name:      aa.Name,
+				ID:        aa.RuleUuid,
+				Enabled:   ptrToBool(aa.Enabled),
+				Mandatory: ptrToBool(aa.Mandatory),
+				VMs:       []*magnet.VM{},
+			}
+
+			for _, vm := range aa.Vm {
+				rule.VMs = append(rule.VMs, vmLookup[vm.Value])
+			}
+
+			state.Rules = append(state.Rules, rule)
+		}
 	}
 
 	return state, nil
@@ -268,10 +300,10 @@ var (
 	hostProps = []string{"name", "vm", "hardware"}
 
 	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.VirtualMachine.html
-	vmProps = []string{"name", "value", "resourcePool", "availableField", "customValue"}
+	vmProps = []string{"name", "value", "resourcePool", "availableField", "customValue", "config"}
 
 	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.ClusterComputeResource.html
-	clusterProps = []string{"name", "host", "resourcePool"}
+	clusterProps = []string{"name", "host", "resourcePool", "configuration"}
 )
 
 func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
