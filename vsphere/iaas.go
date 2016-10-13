@@ -251,17 +251,35 @@ func (c *collector) filter(cluster string, resourcepool string) {
 	}
 }
 
+// properties to retrieve from vCenter
+var (
+	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.ResourcePool.html
+	rpProps = []string{"name", "value", "resourcePool"}
+
+	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.Datacenter.html
+	dcProps = []string{"name", "hostFolder", "vmFolder"}
+
+	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.HostSystem.html
+	hostProps = []string{"name", "vm"}
+
+	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.VirtualMachine.html
+	vmProps = []string{"name", "value", "resourcePool", "availableField", "customValue"}
+
+	// https://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.ClusterComputeResource.html
+	clusterProps = []string{"name", "host", "resourcePool"}
+)
+
 func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
 	if len(c.rpRefs) > 0 {
 		var rps []mo.ResourcePool
-		client.PropertyCollector().Retrieve(ctx, c.rpRefs, nil, &rps)
+		client.PropertyCollector().Retrieve(ctx, c.rpRefs, rpProps, &rps)
 		var retrieve func(rps []types.ManagedObjectReference)
 		retrieve = func(r []types.ManagedObjectReference) {
 			if len(r) == 0 {
 				return
 			}
 			var childrps []mo.ResourcePool
-			client.PropertyCollector().Retrieve(ctx, r, nil, &childrps)
+			client.PropertyCollector().Retrieve(ctx, r, rpProps, &childrps)
 			rps = append(rps, childrps...)
 		}
 		for _, rp := range rps {
@@ -274,16 +292,16 @@ func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
 	}
 
 	if len(c.dcRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.dcRefs, nil, &c.dcs)
+		client.PropertyCollector().Retrieve(ctx, c.dcRefs, dcProps, &c.dcs)
 	}
 	if len(c.hostRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.hostRefs, nil, &c.hosts)
+		client.PropertyCollector().Retrieve(ctx, c.hostRefs, hostProps, &c.hosts)
 	}
 	if len(c.vmRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.vmRefs, nil, &c.vms)
+		client.PropertyCollector().Retrieve(ctx, c.vmRefs, vmProps, &c.vms)
 	}
 	if len(c.clusterRefs) > 0 {
-		client.PropertyCollector().Retrieve(ctx, c.clusterRefs, nil, &c.clusters)
+		client.PropertyCollector().Retrieve(ctx, c.clusterRefs, clusterProps, &c.clusters)
 	}
 
 	c.dcRefs = nil
