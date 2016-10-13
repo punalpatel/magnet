@@ -2,6 +2,9 @@
 
 set -xe
 
+export GOPATH=$PWD/go
+export PATH=$GOPATH/bin:$PATH
+
 stage_dir="$PWD/stage"
 source_dir="$(cd "$(dirname "$0")" && pwd)"
 pushd $source_dir/..
