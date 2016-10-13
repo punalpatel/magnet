@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 
@@ -9,7 +10,19 @@ import (
 	"github.com/pivotalservices/magnet/vsphere"
 )
 
+var Version = "dev"
+
+var (
+	ver = flag.Bool("v", false, "print the version")
+)
+
 func main() {
+	flag.Parse()
+	if *ver {
+		printVersion()
+		return
+	}
+
 	v, err := vsphere.New()
 	if err != nil {
 		exit(err)
@@ -20,6 +33,10 @@ func main() {
 		exit(err)
 	}
 	os.Exit(0)
+}
+
+func printVersion() {
+	fmt.Println(Version)
 }
 
 func exit(err error) {
