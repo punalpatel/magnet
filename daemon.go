@@ -12,6 +12,7 @@ import (
 // checking and rebalancing a deployment.
 type Daemon struct {
 	IaaS    IaaS
+	Period  int
 	running int32
 }
 
@@ -42,7 +43,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 				return nil
 			}
 			return err
-		case <-time.After(5 * time.Minute):
+		case <-time.After(time.Duration(d.Period) * time.Minute):
 			ctx2, cancel2 := context.WithTimeout(ctx, 60*time.Second)
 			defer cancel2()
 			d.Poll(ctx2)

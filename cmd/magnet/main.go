@@ -13,7 +13,8 @@ import (
 var Version = "dev"
 
 var (
-	ver = flag.Bool("v", false, "print the version")
+	ver  = flag.Bool("v", false, "print the version")
+	poll = flag.Int("p", 5, "polling period (minutes)")
 )
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 	if err != nil {
 		exit(err)
 	}
-	d := &magnet.Daemon{IaaS: v}
+	d := &magnet.Daemon{IaaS: v, Period: *poll}
 	err = d.Run(context.Background())
 	if err != nil {
 		exit(err)
