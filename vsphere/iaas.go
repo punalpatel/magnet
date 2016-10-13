@@ -90,31 +90,6 @@ func jobForVM(vm *mo.VirtualMachine) string {
 	return ""
 }
 
-func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
-	state := &magnet.State{}
-	for _, vm := range c.vms {
-		job := jobForVM(&vm)
-		if job == "" {
-			continue
-		}
-		v := &magnet.VM{
-			ID:   vm.Reference().String(),
-			Name: vm.Name,
-			Host: "",
-			Job:  job,
-		}
-		state.VMs = append(state.VMs, v)
-	}
-	for _, host := range c.hosts {
-		state.Hosts = append(state.Hosts, &magnet.Host{
-			ID:   host.Reference().String(),
-			Name: host.Name,
-		})
-	}
-
-	return state, nil
-}
-
 func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
 	f := find.NewFinder(client.Client, true)
 	collector := &collector{}
@@ -166,18 +141,46 @@ func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State
 }
 
 type collector struct {
-	dcs         []mo.Datacenter
-	dcRefs      []types.ManagedObjectReference
-	hosts       []mo.HostSystem
-	hostRefs    []types.ManagedObjectReference
-	vms         []mo.VirtualMachine
-	vmRefs      []types.ManagedObjectReference
+	dcs       []mo.Datacenter
+	dcRefs    []types.ManagedObjectReference
+	hosts     []mo.HostSystem
+	hostRefs  []types.ManagedObjectReference
+	vms       []mo.VirtualMachine
+	vmRefs    []types.ManagedObjectReference
+	vmToHosts map[string]string
+
 	clusters    []mo.ClusterComputeResource
 	clusterRefs []types.ManagedObjectReference
 	rps         []mo.ResourcePool
 	rpRefs      []types.ManagedObjectReference
 	folders     []mo.Folder
 	folderRefs  []types.ManagedObjectReference
+}
+
+func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
+	state := &magnet.State{}
+	for _, host := range c.hosts {
+		state.Hosts = append(state.Hosts, &magnet.Host{
+			ID:   host.Reference().String(),
+			Name: host.Name,
+		})
+	}
+
+	for i := range c.vms {
+		job := jobForVM(&c.vms[i])
+		if job == "" {
+			continue
+		}
+		v := &magnet.VM{
+			ID:   c.vms[i].Reference().String(),
+			Name: c.vms[i].Name,
+			Host: c.vmToHosts[c.vms[i].Reference().Value],
+			Job:  job,
+		}
+		state.VMs = append(state.VMs, v)
+	}
+
+	return state, nil
 }
 
 func (c *collector) filter(cluster string, resourcepool string) {
@@ -246,8 +249,8 @@ func (c *collector) filter(cluster string, resourcepool string) {
 			}
 		}
 
-		c.hosts = hosts
 		c.vms = vms
+		c.hosts = hosts
 	}
 }
 
@@ -296,6 +299,12 @@ func (c *collector) hydrate(ctx context.Context, client *govmomi.Client) {
 	}
 	if len(c.hostRefs) > 0 {
 		client.PropertyCollector().Retrieve(ctx, c.hostRefs, hostProps, &c.hosts)
+		c.vmToHosts = make(map[string]string)
+		for _, host := range c.hosts {
+			for _, vm := range host.Vm {
+				c.vmToHosts[vm.Reference().Value] = host.Reference().Value
+			}
+		}
 	}
 	if len(c.vmRefs) > 0 {
 		client.PropertyCollector().Retrieve(ctx, c.vmRefs, vmProps, &c.vms)
