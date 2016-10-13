@@ -18,32 +18,37 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-type vsphereconfig struct {
-	Scheme       string `default:"https"`
-	Hostname     string `required:"true"`
-	Port         string `default:"443"`
-	Username     string `required:"true"`
-	Password     string `required:"true"`
-	Insecure     bool   `default:"false"`
-	Cluster      string `required:"true"`
-	ResourcePool string `default:""`
-}
-
-func (c *vsphereconfig) hostAndPort() string {
-	if c.Scheme == "http" && c.Port != "80" {
-		return fmt.Sprintf("%s:%s", c.Hostname, c.Port)
-	}
-	if c.Scheme == "https" && c.Port != "443" {
-		return fmt.Sprintf("%s:%s", c.Hostname, c.Port)
-	}
-	return c.Hostname
-}
-
 // IaaS is the vSphere implementation of IaaS.
 type IaaS struct {
 	URL    *url.URL
 	config *vsphereconfig
 	client *govmomi.Client
+}
+
+// New creates an IaaS that connects to the vCenter API.
+// It is configured with the following environment variables:
+//   - VSPHERE_SCHEME        (default https)
+//   - VSPHERE_HOSTNAME      (required)
+//   - VSPHERE_PORT          (default 443)
+//   - VSPHERE_USERNAME      (required)
+//   - VSPHERE_PASSWORD      (required)
+//   - VSPHERE_INSECURE      (default false)
+//   - VSPHERE_CLUSTER       (required)
+//   - VSPHERE_RESOURCEPOOL  (default "")
+func New() (magnet.IaaS, error) {
+	var config vsphereconfig
+	err := envconfig.Process("vsphere", &config)
+	if err != nil {
+		return nil, err
+	}
+
+	uri := fmt.Sprintf("%s://%s:%s@%s/sdk", config.Scheme, url.QueryEscape(config.Username), url.QueryEscape(config.Password), config.hostAndPort())
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return nil, err
+	}
+	i := &IaaS{URL: parsed, config: &config}
+	return i, nil
 }
 
 func (i *IaaS) Converge(ctx context.Context, state *magnet.State) error {
@@ -61,6 +66,118 @@ func (i *IaaS) State(ctx context.Context) (*magnet.State, error) {
 	}
 	fmt.Println("Connected to", i.config.hostAndPort())
 	return i.state(ctx, c)
+}
+
+func jobForVM(vm *mo.VirtualMachine) string {
+	if vm == nil || len(vm.Value) == 0 {
+		return ""
+	}
+
+	fieldKey := int32(-1)
+	for _, field := range vm.AvailableField {
+		if field.Name == "job" {
+			fieldKey = field.Key
+		}
+	}
+
+	for _, v := range vm.Value {
+		if v.GetCustomFieldValue().Key == fieldKey {
+			if cv, ok := v.(*types.CustomFieldStringValue); ok {
+				return cv.Value
+			}
+		}
+	}
+	return ""
+}
+
+func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
+	state := &magnet.State{}
+	for _, vm := range c.vms {
+		job := jobForVM(&vm)
+		if job == "" {
+			continue
+		}
+		v := &magnet.VM{
+			ID:   vm.Reference().String(),
+			Name: vm.Name,
+			Host: "",
+			Job:  job,
+		}
+		state.VMs = append(state.VMs, v)
+	}
+	for _, host := range c.hosts {
+		state.Hosts = append(state.Hosts, &magnet.Host{
+			ID:   host.Reference().String(),
+			Name: host.Name,
+		})
+	}
+
+	return state, nil
+}
+
+func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
+	f := find.NewFinder(client.Client, true)
+	collector := &collector{}
+	objects, err := f.DatacenterList(ctx, "*")
+	if err != nil {
+		return nil, err
+	}
+	var refs []object.Reference
+	for _, dc := range objects {
+		refs = append(refs, object.NewReference(client.Client, dc.Reference()))
+	}
+
+	collector.enumerate(ctx, client, refs)
+	collector.hydrate(ctx, client)
+
+	for _, dc := range collector.dcs {
+		var dcrefs []object.Reference
+		d := object.NewDatacenter(client.Client, dc.Reference())
+		f.SetDatacenter(d)
+		dcFolders, err := d.Folders(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		hosts, _ := f.HostSystemList(ctx, path.Join(dcFolders.HostFolder.InventoryPath, "*"))
+		for _, host := range hosts {
+			dcrefs = append(dcrefs, host.Reference())
+		}
+		rps, _ := f.ResourcePoolList(ctx, "*")
+		for _, rp := range rps {
+			dcrefs = append(dcrefs, rp.Reference())
+		}
+		children, err := dcFolders.VmFolder.Children(ctx)
+		if err != nil {
+			return nil, err
+		}
+		dcrefs = append(dcrefs, children...)
+		children, err = dcFolders.HostFolder.Children(ctx)
+		if err != nil {
+			return nil, err
+		}
+		dcrefs = append(dcrefs, children...)
+		collector.enumerate(ctx, client, dcrefs)
+	}
+
+	collector.hydrate(ctx, client)
+	collector.filter(i.config.Cluster, i.config.ResourcePool)
+	return collector.toState(ctx, client)
+}
+
+type collector struct {
+	dcs         []mo.Datacenter
+	dcRefs      []types.ManagedObjectReference
+	hosts       []mo.HostSystem
+	hostRefs    []types.ManagedObjectReference
+	vms         []mo.VirtualMachine
+	vmRefs      []types.ManagedObjectReference
+	clusters    []mo.ClusterComputeResource
+	clusterRefs []types.ManagedObjectReference
+	rps         []mo.ResourcePool
+	rpRefs      []types.ManagedObjectReference
+	folders     []mo.Folder
+	folderRefs  []types.ManagedObjectReference
 }
 
 func (c *collector) filter(cluster string, resourcepool string) {
@@ -114,7 +231,7 @@ func (c *collector) filter(cluster string, resourcepool string) {
 		for _, vm := range c.vms {
 			if vm.ResourcePool != nil &&
 				strings.EqualFold(vm.ResourcePool.String(), foundRp.Reference().String()) &&
-				!strings.HasPrefix(vm.Name, "sc")  &&
+				!strings.HasPrefix(vm.Name, "sc") &&
 				!strings.HasPrefix(vm.Name, "tpl") {
 				vms = append(vms, vm)
 			}
@@ -205,142 +322,4 @@ func debug(i interface{}) {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "   ")
 	enc.Encode(i)
-}
-
-type collector struct {
-	dcs         []mo.Datacenter
-	dcRefs      []types.ManagedObjectReference
-	hosts       []mo.HostSystem
-	hostRefs    []types.ManagedObjectReference
-	vms         []mo.VirtualMachine
-	vmRefs      []types.ManagedObjectReference
-	clusters    []mo.ClusterComputeResource
-	clusterRefs []types.ManagedObjectReference
-	rps         []mo.ResourcePool
-	rpRefs      []types.ManagedObjectReference
-	folders     []mo.Folder
-	folderRefs  []types.ManagedObjectReference
-}
-
-func jobForVM(vm *mo.VirtualMachine) string {
-	if vm == nil || len(vm.Value) == 0 {
-		return ""
-	}
-
-	fieldKey := int32(-1)
-	for _, field := range vm.AvailableField {
-		if field.Name == "job" {
-			fieldKey = field.Key
-		}
-	}
-
-	for _, v := range vm.Value {
-		if v.GetCustomFieldValue().Key == fieldKey {
-			if cv, ok := v.(*types.CustomFieldStringValue); ok {
-				return cv.Value
-			}
-		}
-	}
-	return ""
-}
-
-func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
-	state := &magnet.State{}
-	for _, vm := range c.vms {
-		job := jobForVM(&vm)
-		if job == "" {
-			continue
-		}
-		v := &magnet.VM{
-			ID:   vm.Reference().String(),
-			Name: vm.Name,
-			Host: "",
-			Job: job,
-		}
-		state.VMs = append(state.VMs, v)
-	}
-	for _, host := range c.hosts {
-		state.Hosts = append(state.Hosts, &magnet.Host{
-			ID:   host.Reference().String(),
-			Name: host.Name,
-		})
-	}
-
-	return state, nil
-}
-
-func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
-	f := find.NewFinder(client.Client, true)
-	collector := &collector{}
-	objects, err := f.DatacenterList(ctx, "*")
-	if err != nil {
-		return nil, err
-	}
-	var refs []object.Reference
-	for _, dc := range objects {
-		refs = append(refs, object.NewReference(client.Client, dc.Reference()))
-	}
-
-	collector.enumerate(ctx, client, refs)
-	collector.hydrate(ctx, client)
-
-	for _, dc := range collector.dcs {
-		var dcrefs []object.Reference
-		d := object.NewDatacenter(client.Client, dc.Reference())
-		f.SetDatacenter(d)
-		dcFolders, err := d.Folders(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		hosts, _ := f.HostSystemList(ctx, path.Join(dcFolders.HostFolder.InventoryPath, "*"))
-		for _, host := range hosts {
-			dcrefs = append(dcrefs, host.Reference())
-		}
-		rps, _ := f.ResourcePoolList(ctx, "*")
-		for _, rp := range rps {
-			dcrefs = append(dcrefs, rp.Reference())
-		}
-		children, err := dcFolders.VmFolder.Children(ctx)
-		if err != nil {
-			return nil, err
-		}
-		dcrefs = append(dcrefs, children...)
-		children, err = dcFolders.HostFolder.Children(ctx)
-		if err != nil {
-			return nil, err
-		}
-		dcrefs = append(dcrefs, children...)
-		collector.enumerate(ctx, client, dcrefs)
-	}
-
-	collector.hydrate(ctx, client)
-	collector.filter(i.config.Cluster, i.config.ResourcePool)
-	return collector.toState(ctx, client)
-}
-
-// New creates an IaaS that connects to the vCenter API.
-// It is configured with the following environment variables:
-//   - VSPHERE_SCHEME        (default https)
-//   - VSPHERE_HOSTNAME      (required)
-//   - VSPHERE_PORT          (default 443)
-//   - VSPHERE_USERNAME      (required)
-//   - VSPHERE_PASSWORD      (required)
-//   - VSPHERE_INSECURE      (default false)
-//   - VSPHERE_CLUSTER       (required)
-//   - VSPHERE_RESOURCEPOOL (default "")
-func New() (magnet.IaaS, error) {
-	var config vsphereconfig
-	err := envconfig.Process("vsphere", &config)
-	if err != nil {
-		return nil, err
-	}
-
-	uri := fmt.Sprintf("%s://%s:%s@%s/sdk", config.Scheme, url.QueryEscape(config.Username), url.QueryEscape(config.Password), config.hostAndPort())
-	parsed, err := url.Parse(uri)
-	if err != nil {
-		return nil, err
-	}
-	i := &IaaS{URL: parsed, config: &config}
-	return i, nil
 }
