@@ -6,6 +6,12 @@ resource_types:
   source:
     repository: jtarchie/pr
 
+- name: slack-notification
+  type: docker-image
+  source:
+    repository: cfcommunity/slack-notification-resource
+    tag: latest
+
 resources:
 - name: version
   type: semver
@@ -22,6 +28,12 @@ resources:
     repo: pivotalservices/magnet
     access_token: {{github-access-token}}
     private_key: {{git-private-key}}
+
+- name: slack-alert
+  type: slack-notification
+  source:
+    url: {{slack-webhook-url}}
+    insecure: true
 
 - name: master
   type: git
@@ -61,6 +73,11 @@ jobs:
     trigger: true
   - task: unit
     file: magnet/ci/unit.yml
+    on_failure:
+      put: slack-alert
+      params:
+        text: "tests failed 🙀 - https://concourse.pivotalservices.io/builds/$BUILD_ID"
+        silent: true
 
 - name: pr-unit
   plan:
@@ -79,10 +96,15 @@ jobs:
         path: magnet
         status: success
     on_failure:
-      put: pr
-      params:
-        path: magnet
-        status: failure
+      aggregate:
+        - put: pr
+          params:
+            path: magnet
+            status: failure
+        - put: slack-alert
+          params:
+            text: "tests failed 🙀 - https://concourse.pivotalservices.io/builds/$BUILD_ID"
+            silent: true
 
 - name: stage
   plan:
@@ -100,3 +122,8 @@ jobs:
         tag: magnet-bits/tag
         globs:
         - magnet-bits/release/*
+    on_failure:
+      put: slack-alert
+      params:
+        text: "staging failed 🙀 - https://concourse.pivotalservices.io/builds/$BUILD_ID"
+        silent: true
