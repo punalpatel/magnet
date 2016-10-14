@@ -27,8 +27,8 @@ func Check(ctx context.Context, i IaaS) error {
 	}
 	PrintJobs(s, os.Stdout)
 	if !IsBalanced(s) {
-		newState := Balance(s)
-		err = i.Converge(ctx, newState)
+		rec := RuleRecommendations(s)
+		err = i.Converge(ctx, s, rec)
 		if err != nil {
 			return err
 		}
@@ -73,21 +73,8 @@ func PrintJobs(s *State, w io.Writer) {
 	}
 }
 
-// Balance accepts an unbalanced state as input and produces a new
-// balanced state as output.
-func Balance(s *State) *State {
-	return s
-}
-
-// RuleRecommendation is a reccomendation for how to achieve anti-affinity
-// based on the current state of the system.
-type RuleRecommendation struct {
-	Valid   []Rule // already exist and should be left unchanged
-	Stale   []Rule // outdated and should be removed
-	Missing []Rule // don't yet exist and need to be created
-}
-
-// RuleRecommendations looks at d
+// RuleRecommendations looks at the state of the system and makes reccomendations
+// about how to achieve anti-affinity.
 func RuleRecommendations(s *State) *RuleRecommendation {
 	vmsForJob := make(map[string][]*VM)
 	for _, vm := range s.VMs {

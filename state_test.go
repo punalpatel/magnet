@@ -58,7 +58,7 @@ var _ = Describe("State", func() {
 			}
 
 			calledConverge := false
-			i.ConvergeFn = func(ctx context.Context, state *magnet.State) error {
+			i.ConvergeFn = func(ctx context.Context, state *magnet.State, rec *magnet.RuleRecommendation) error {
 				calledConverge = true
 				return nil
 			}
@@ -85,7 +85,7 @@ var _ = Describe("State", func() {
 				return state, nil
 			}
 
-			i.ConvergeFn = func(ctx context.Context, state *magnet.State) error {
+			i.ConvergeFn = func(ctx context.Context, state *magnet.State, rec *magnet.RuleRecommendation) error {
 				return errors.New("couldn't converge")
 			}
 

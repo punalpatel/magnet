@@ -10,7 +10,7 @@ import (
 // can be replaced.
 type IaaS struct {
 	StateFn    func(ctx context.Context) (*magnet.State, error)
-	ConvergeFn func(ctx context.Context, state *magnet.State) error
+	ConvergeFn func(ctx context.Context, state *magnet.State, rec *magnet.RuleRecommendation) error
 }
 
 // State runs the IaaS's supplied StateFn.
@@ -25,9 +25,9 @@ func (m *IaaS) State(ctx context.Context) (*magnet.State, error) {
 
 // Converge runs the IaaS's supplied ConvergeFn.
 // If no converge function was provided it returns a nil error.
-func (m *IaaS) Converge(ctx context.Context, state *magnet.State) error {
+func (m *IaaS) Converge(ctx context.Context, state *magnet.State, rec *magnet.RuleRecommendation) error {
 	if m.ConvergeFn != nil {
-		return m.ConvergeFn(ctx, state)
+		return m.ConvergeFn(ctx, state, rec)
 	}
 	return nil
 }

@@ -5,7 +5,7 @@ import "context"
 // IaaS is an abstraction for a particular IaaS.
 type IaaS interface {
 	State(ctx context.Context) (*State, error)
-	Converge(ctx context.Context, state *State) error
+	Converge(ctx context.Context, state *State, rec *RuleRecommendation) error
 }
 
 // State represents the resources in a Cloud Foundry deployment.
@@ -40,4 +40,12 @@ type Rule struct {
 	Enabled   bool
 	Mandatory bool
 	VMs       []*VM
+}
+
+// RuleRecommendation is a reccomendation for how to achieve anti-affinity
+// based on the current state of the system.
+type RuleRecommendation struct {
+	Valid   []Rule // already exist and should be left unchanged
+	Stale   []Rule // outdated and should be removed
+	Missing []Rule // don't yet exist and need to be created
 }

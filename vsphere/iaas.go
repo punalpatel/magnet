@@ -22,7 +22,6 @@ import (
 type IaaS struct {
 	URL    *url.URL
 	config *vsphereconfig
-	client *govmomi.Client
 }
 
 // New creates an IaaS that connects to the vCenter API.
@@ -51,17 +50,31 @@ func New() (magnet.IaaS, error) {
 	return i, nil
 }
 
-func (i *IaaS) Converge(ctx context.Context, state *magnet.State) error {
+// Converge applies the specified reccomendations in order to achieve anti-affinity.
+func (i *IaaS) Converge(ctx context.Context, state *magnet.State, rec *magnet.RuleRecommendation) error {
+	c, err := govmomi.NewClient(ctx, i.URL, i.config.Insecure)
+	if err != nil {
+		return err
+	}
+	if !c.IsVC() {
+		return fmt.Errorf("%s is not a vCenter", i.config.hostAndPort())
+	}
+
+	// TODO:
+	// - lookup cluster (state.RuleContainer)
+	// - remove any rules in rec.Stale
+	// - add any rules in rec.Missing
+
 	return nil
 }
 
+// State gets the current state of the deployment on vSphere.
 func (i *IaaS) State(ctx context.Context) (*magnet.State, error) {
 	c, err := govmomi.NewClient(ctx, i.URL, i.config.Insecure)
 	if err != nil {
 		return nil, err
 	}
-	i.client = c
-	if !i.client.IsVC() {
+	if !c.IsVC() {
 		return nil, fmt.Errorf("%s is not a vCenter", i.config.hostAndPort())
 	}
 	fmt.Println("Connected to", i.config.hostAndPort())
