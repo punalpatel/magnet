@@ -10,9 +10,11 @@ type IaaS interface {
 
 // State represents the resources in a Cloud Foundry deployment.
 type State struct {
-	Hosts []*Host
-	VMs   []*VM
-	Rules []*Rule
+	RuleContainer string
+	VMContainer   string
+	Hosts         []*Host
+	VMs           []*VM
+	Rules         []*Rule
 }
 
 // VM is a virtual machine in a Cloud Foundry depoyment.
@@ -31,6 +33,7 @@ type Host struct {
 	ID   string
 }
 
+// Rule can be used to achieve anti-affinity
 type Rule struct {
 	Name      string
 	ID        string

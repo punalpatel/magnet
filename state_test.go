@@ -222,4 +222,110 @@ var _ = Describe("State", func() {
 			Ω(magnet.IsBalanced(state)).Should(BeTrue())
 		})
 	})
+
+	Context("RuleRecommendations (2 hosts)", func() {
+		var (
+			recommendations                   *magnet.RuleRecommendation
+			validRule, missingRule, bogusRule *magnet.Rule
+		)
+		BeforeEach(func() {
+			host1 := &magnet.Host{ID: "host1"}
+			host2 := &magnet.Host{ID: "host2"}
+
+			routerVM1 := &magnet.VM{Job: "router", HostUUID: host1.ID}
+			routerVM2 := &magnet.VM{Job: "router", HostUUID: host1.ID}
+
+			cellVM1 := &magnet.VM{Job: "diego_cell", HostUUID: host2.ID}
+			cellVM2 := &magnet.VM{Job: "diego_cell", HostUUID: host2.ID}
+
+			clockGlobalVM := &magnet.VM{Job: "clock_global", HostUUID: host1.ID}
+
+			validRule = &magnet.Rule{Name: "diego_cell", Enabled: true, Mandatory: true, VMs: []*magnet.VM{cellVM1, cellVM2}}
+			missingRule = &magnet.Rule{Name: "router", Enabled: true, Mandatory: true, VMs: []*magnet.VM{routerVM1, routerVM2}}
+			bogusRule = &magnet.Rule{Name: "bogus", Enabled: true, Mandatory: true, VMs: []*magnet.VM{routerVM1, clockGlobalVM}}
+
+			state := &magnet.State{
+				Hosts: []*magnet.Host{host1, host2},
+				VMs:   []*magnet.VM{routerVM1, routerVM2, cellVM1, cellVM2, clockGlobalVM},
+				Rules: []*magnet.Rule{validRule, bogusRule},
+			}
+			recommendations = magnet.RuleRecommendations(state)
+		})
+
+		It("Identifies missing rules", func() {
+			Ω(recommendations.Missing).Should(ConsistOf(*missingRule))
+		})
+
+		It("Identifies valid rules", func() {
+			Ω(recommendations.Valid).Should(ConsistOf(*validRule))
+		})
+
+		It("Identifies stale rules", func() {
+			Ω(recommendations.Stale).Should(ConsistOf(*bogusRule))
+		})
+	})
+
+	Context("RuleRecommendations (incorrect/stale rule)", func() {
+		var (
+			recommendations        *magnet.RuleRecommendation
+			staleRule1, staleRule2 *magnet.Rule
+			routerVM1, routerVM2   *magnet.VM
+			cellVM1, cellVM2       *magnet.VM
+		)
+		BeforeEach(func() {
+			host1 := &magnet.Host{ID: "host1"}
+			host2 := &magnet.Host{ID: "host2"}
+
+			routerVM1 = &magnet.VM{Job: "router", HostUUID: host1.ID}
+			routerVM2 = &magnet.VM{Job: "router", HostUUID: host1.ID}
+
+			cellVM1 = &magnet.VM{Job: "diego_cell", HostUUID: host2.ID}
+			cellVM2 = &magnet.VM{Job: "diego_cell", HostUUID: host2.ID}
+
+			staleRule1 = &magnet.Rule{
+				Name:      "router",
+				Enabled:   true,
+				Mandatory: true,
+				VMs:       []*magnet.VM{routerVM1, cellVM1},
+			}
+			staleRule2 = &magnet.Rule{
+				Name:      "diego_cell",
+				Enabled:   true,
+				Mandatory: true,
+				VMs:       []*magnet.VM{routerVM2, cellVM2},
+			}
+
+			// create a state that has 2 rules, but for the wrong VMs
+			state := &magnet.State{
+				Hosts: []*magnet.Host{host1, host2},
+				VMs:   []*magnet.VM{routerVM1, routerVM2, cellVM1, cellVM2},
+				Rules: []*magnet.Rule{staleRule1, staleRule2},
+			}
+			recommendations = magnet.RuleRecommendations(state)
+		})
+
+		It("Identifies valid rules", func() {
+			Ω(recommendations.Valid).Should(BeEmpty())
+		})
+
+		It("Identifies missing rules", func() {
+			router := magnet.Rule{
+				Name:      "router",
+				Enabled:   true,
+				Mandatory: true,
+				VMs:       []*magnet.VM{routerVM1, routerVM2},
+			}
+			diegoCell := magnet.Rule{
+				Name:      "diego_cell",
+				Enabled:   true,
+				Mandatory: true,
+				VMs:       []*magnet.VM{cellVM1, cellVM2},
+			}
+			Ω(recommendations.Missing).Should(ConsistOf(router, diegoCell))
+		})
+
+		It("Identifies stale rules", func() {
+			Ω(recommendations.Stale).Should(ConsistOf(*staleRule1, *staleRule2))
+		})
+	})
 })

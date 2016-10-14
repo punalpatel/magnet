@@ -141,24 +141,28 @@ func (i *IaaS) state(ctx context.Context, client *govmomi.Client) (*magnet.State
 }
 
 type collector struct {
-	dcs         []mo.Datacenter
-	dcRefs      []types.ManagedObjectReference
-	hosts       []mo.HostSystem
-	hostRefs    []types.ManagedObjectReference
-	vms         []mo.VirtualMachine
-	vmRefs      []types.ManagedObjectReference
-	vmToHosts   map[string]string // vm reference to host UUID
-	hostnames   map[string]string // host UUID to hostname
-	clusters    []mo.ClusterComputeResource
-	clusterRefs []types.ManagedObjectReference
-	rps         []mo.ResourcePool
-	rpRefs      []types.ManagedObjectReference
-	folders     []mo.Folder
-	folderRefs  []types.ManagedObjectReference
+	dcs          []mo.Datacenter
+	dcRefs       []types.ManagedObjectReference
+	hosts        []mo.HostSystem
+	hostRefs     []types.ManagedObjectReference
+	vms          []mo.VirtualMachine
+	vmRefs       []types.ManagedObjectReference
+	vmToHosts    map[string]string // vm reference to host UUID
+	hostnames    map[string]string // host UUID to hostname
+	clusters     []mo.ClusterComputeResource
+	clusterRefs  []types.ManagedObjectReference
+	rps          []mo.ResourcePool
+	rpRefs       []types.ManagedObjectReference
+	folders      []mo.Folder
+	folderRefs   []types.ManagedObjectReference
+	cluster      *mo.ClusterComputeResource
+	resourcepool *mo.ResourcePool
 }
 
 func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
 	state := &magnet.State{}
+	state.VMContainer = c.cluster.Reference().String()
+	state.RuleContainer = c.resourcepool.Reference().String()
 	for _, host := range c.hosts {
 		state.Hosts = append(state.Hosts, &magnet.Host{
 			ID:   host.Reference().String(),
@@ -218,30 +222,26 @@ func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magne
 }
 
 func (c *collector) filter(cluster string, resourcepool string) {
-	var foundCluster *mo.ClusterComputeResource
 	for _, cl := range c.clusters {
 		if strings.EqualFold(cl.Name, cluster) {
-			foundCluster = &cl
+			c.cluster = &cl
 			break
 		}
 	}
 
-	if foundCluster == nil {
+	if c.cluster == nil {
 		// TODO: This is invalid; but may result from the renaming of a cluster
 		panic("Cannot find cluster")
 	}
 
-	var implicitRp *mo.ResourcePool
 	for _, r := range c.rps {
-		if strings.EqualFold(r.Reference().String(), foundCluster.ResourcePool.Reference().String()) {
-			implicitRp = &r
+		if strings.EqualFold(r.Reference().String(), c.cluster.ResourcePool.Reference().String()) {
+			c.resourcepool = &r
 			break
 		}
 	}
 
-	var foundRp *mo.ResourcePool
 	if strings.TrimSpace(resourcepool) != "" {
-		foundRp = implicitRp
 		var filtered []mo.ResourcePool
 		var recurse func(rpRefs []types.ManagedObjectReference)
 		recurse = func(rpRefs []types.ManagedObjectReference) {
@@ -256,36 +256,40 @@ func (c *collector) filter(cluster string, resourcepool string) {
 				}
 			}
 		}
-		recurse(implicitRp.ResourcePool)
+		recurse(c.resourcepool.ResourcePool)
 		for _, r := range filtered {
 			if strings.EqualFold(r.Name, resourcepool) {
-				foundRp = &r
+				c.resourcepool = &r
 				break
 			}
 		}
-
-		var vms []mo.VirtualMachine
-		for _, vm := range c.vms {
-			if vm.ResourcePool != nil &&
-				strings.EqualFold(vm.ResourcePool.String(), foundRp.Reference().String()) &&
-				!strings.HasPrefix(vm.Name, "sc") &&
-				!strings.HasPrefix(vm.Name, "tpl") {
-				vms = append(vms, vm)
-			}
-		}
-
-		var hosts []mo.HostSystem
-		for _, host := range foundCluster.Host {
-			for _, h := range c.hosts {
-				if strings.EqualFold(host.String(), h.Reference().String()) {
-					hosts = append(hosts, h)
-				}
-			}
-		}
-
-		c.vms = vms
-		c.hosts = hosts
 	}
+
+	if c.resourcepool == nil {
+		panic("Cannot find resource pool")
+	}
+
+	var vms []mo.VirtualMachine
+	for _, vm := range c.vms {
+		if vm.ResourcePool != nil &&
+			strings.EqualFold(vm.ResourcePool.String(), c.resourcepool.Reference().String()) &&
+			!strings.HasPrefix(vm.Name, "sc") &&
+			!strings.HasPrefix(vm.Name, "tpl") {
+			vms = append(vms, vm)
+		}
+	}
+
+	var hosts []mo.HostSystem
+	for _, host := range c.cluster.Host {
+		for _, h := range c.hosts {
+			if strings.EqualFold(host.String(), h.Reference().String()) {
+				hosts = append(hosts, h)
+			}
+		}
+	}
+
+	c.vms = vms
+	c.hosts = hosts
 }
 
 // properties to retrieve from vCenter
