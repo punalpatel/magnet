@@ -1,18 +1,22 @@
 package magnet
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"math"
-	"os"
+	"text/tabwriter"
 
 	"github.com/fatih/color"
 )
 
 var (
-	balancedIndicator   = color.GreenString("✓")
-	unbalancedIndicator = color.RedString("✗")
+	balancedIndicator   = "✓"
+	unbalancedIndicator = "✗"
+
+	red   = color.New(color.FgRed).SprintfFunc()
+	green = color.New(color.FgGreen).SprintfFunc()
 )
 
 // Check gets the state of the deployment on the specified IaaS,
@@ -25,9 +29,10 @@ func Check(ctx context.Context, i IaaS) error {
 		// Need to log this
 		return err
 	}
-	PrintJobs(s, os.Stdout)
+	PrintJobs(s)
 	if !IsBalanced(s) {
 		rec := RuleRecommendations(s)
+		rec.PrintReport()
 		err = i.Converge(ctx, s, rec)
 		if err != nil {
 			return err
@@ -54,7 +59,7 @@ func IsBalanced(s *State) bool {
 }
 
 // PrintJobs while indicating if each job is balanced
-func PrintJobs(s *State, w io.Writer) {
+func PrintJobs(s *State) {
 	jobHosts := make(map[string]hostList)
 	for _, vm := range s.VMs {
 		jobHosts[vm.Job] = append(jobHosts[vm.Job], vm.HostUUID)
@@ -65,12 +70,43 @@ func PrintJobs(s *State, w io.Writer) {
 		isBalanced := !hosts.exceedsMax(hostCount)
 		var status string
 		if isBalanced {
-			status = balancedIndicator
+			status = greenSprintf("%s", balancedIndicator)
 		} else {
-			status = unbalancedIndicator
+			status = redSprintf("%s", unbalancedIndicator)
 		}
-		fmt.Printf("%s  %s\n", status, jobName)
+		fmt.Fprintf(output, "%s  %s\n", status, jobName)
 	}
+}
+
+// PrintReport writes a user-friendly description of the reccomendations to w.
+func (r *RuleRecommendation) PrintReport() {
+	fmt.Fprintln(output, "Recommendations:")
+	tw := tabwriter.NewWriter(output, 8, 4, 1, ' ', 0)
+	defer tw.Flush()
+
+	if len(r.Stale) > 0 {
+		fmt.Fprintln(output, redSprintf("--REMOVE--"))
+		for i := range r.Stale {
+			writeRule(tw, &r.Stale[i])
+		}
+	}
+	if len(r.Missing) > 0 {
+		fmt.Fprintln(output, greenSprintf("--ADD--"))
+		for i := range r.Missing {
+			writeRule(tw, &r.Missing[i])
+		}
+	}
+}
+
+func writeRule(w io.Writer, r *Rule) {
+	buf := &bytes.Buffer{}
+	for i, vm := range r.VMs {
+		if i > 0 && i < len(r.VMs) {
+			fmt.Fprintf(buf, ", ")
+		}
+		fmt.Fprint(buf, vm.Name)
+	}
+	fmt.Fprintf(w, "%s\t%s\n", r.Name, buf.String())
 }
 
 // RuleRecommendations looks at the state of the system and makes reccomendations
