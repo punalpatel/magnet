@@ -174,8 +174,8 @@ type collector struct {
 
 func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magnet.State, error) {
 	state := &magnet.State{}
-	state.VMContainer = c.cluster.Reference().String()
-	state.RuleContainer = c.resourcepool.Reference().String()
+	state.RuleContainer = c.cluster.Reference().String()
+	state.VMContainer = c.resourcepool.Reference().String()
 	for _, host := range c.hosts {
 		state.Hosts = append(state.Hosts, &magnet.Host{
 			ID:   host.Reference().String(),
