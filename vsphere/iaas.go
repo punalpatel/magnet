@@ -60,10 +60,39 @@ func (i *IaaS) Converge(ctx context.Context, state *magnet.State, rec *magnet.Ru
 		return fmt.Errorf("%s is not a vCenter", i.config.hostAndPort())
 	}
 
-	// TODO:
-	// - lookup cluster (state.RuleContainer)
-	// - remove any rules in rec.Stale
-	// - add any rules in rec.Missing
+	clusterRef := &types.ManagedObjectReference{}
+	clusterRef.FromString(state.RuleContainer)
+	var mcluster mo.ClusterComputeResource
+	err = c.RetrieveOne(ctx, *clusterRef, nil, &mcluster)
+	if err != nil {
+		return err
+	}
+
+	cluster := object.NewClusterComputeResource(c.Client, *clusterRef)
+	clusterSpec := &types.ClusterConfigSpecEx{}
+	var rules []types.ClusterRuleSpec
+	var magnetRules []magnet.Rule
+	magnetRules = append(magnetRules, rec.Missing...)
+	magnetRules = append(magnetRules, rec.Valid...)
+	for _, r := range magnetRules {
+		vms := make([]types.ManagedObjectReference, len(r.VMs))
+		for i := range r.VMs {
+			vms[i].FromString(r.VMs[i].Reference)
+		}
+
+		s := types.ClusterRuleSpec{}
+		ri := types.ClusterAntiAffinityRuleSpec{}
+		ri.Name = r.Name
+		t := true
+		f := false
+		ri.Mandatory = &f
+		ri.Enabled = &t
+		ri.Vm = vms
+		s.Info = ri.GetClusterRuleInfo()
+		rules = append(rules, s)
+	}
+	clusterSpec.RulesSpec = rules
+	cluster.Reconfigure(ctx, clusterSpec, true)
 
 	return nil
 }
