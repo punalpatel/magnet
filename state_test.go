@@ -39,7 +39,7 @@ var _ = Describe("State", func() {
 			Ω(err).Should(Equal(noState))
 		})
 
-		XIt("attempts to converge an unbalanced state to a balanced one", func() {
+		It("attempts to converge an unbalanced state to a balanced one", func() {
 			i.StateFn = func(ctx context.Context) (*magnet.State, error) {
 				host1 := &magnet.Host{ID: "host1"}
 				host2 := &magnet.Host{ID: "host2"}
@@ -67,7 +67,7 @@ var _ = Describe("State", func() {
 			Ω(calledConverge).Should(BeTrue())
 		})
 
-		XIt("returns an error if it can't converge to the new state", func() {
+		It("returns an error if it can't converge to the new state", func() {
 			i.StateFn = func(ctx context.Context) (*magnet.State, error) {
 				host1 := &magnet.Host{ID: "host1"}
 				host2 := &magnet.Host{ID: "host2"}

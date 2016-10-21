@@ -3,6 +3,7 @@ package vsphere
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -23,6 +24,9 @@ type IaaS struct {
 	URL    *url.URL
 	config *vsphereconfig
 }
+
+// ErrNoDRS is the error returned when magnet cannot execute because DRS is not enabled.
+var ErrNoDRS = errors.New("vsphere: DRS is not enabled.  please enable DRS and try again")
 
 // New creates an IaaS that connects to the vCenter API.
 // It is configured with the following environment variables:
@@ -63,38 +67,62 @@ func (i *IaaS) Converge(ctx context.Context, state *magnet.State, rec *magnet.Ru
 	clusterRef := &types.ManagedObjectReference{}
 	clusterRef.FromString(state.RuleContainer)
 	var mcluster mo.ClusterComputeResource
-	err = c.RetrieveOne(ctx, *clusterRef, nil, &mcluster)
+	err = c.RetrieveOne(ctx, *clusterRef, []string{"configuration", "configurationEx"}, &mcluster)
 	if err != nil {
 		return err
 	}
+	if e := mcluster.Configuration.DrsConfig.Enabled; e == nil || *e == false {
+		return ErrNoDRS
+	}
 
-	cluster := object.NewClusterComputeResource(c.Client, *clusterRef)
-	clusterSpec := &types.ClusterConfigSpecEx{}
-	var rules []types.ClusterRuleSpec
-	var magnetRules []magnet.Rule
-	magnetRules = append(magnetRules, rec.Missing...)
-	magnetRules = append(magnetRules, rec.Valid...)
-	for _, r := range magnetRules {
-		vms := make([]types.ManagedObjectReference, len(r.VMs))
+	// add missing rules
+	var ruleSpecs []types.ClusterRuleSpec
+	for _, r := range rec.Missing {
+		vmRefs := make([]types.ManagedObjectReference, len(r.VMs))
 		for i := range r.VMs {
-			vms[i].FromString(r.VMs[i].Reference)
+			vmRefs[i].FromString(r.VMs[i].Reference)
 		}
 
-		s := types.ClusterRuleSpec{}
 		ri := types.ClusterAntiAffinityRuleSpec{}
 		ri.Name = r.Name
-		t := true
-		f := false
-		ri.Mandatory = &f
-		ri.Enabled = &t
-		ri.Vm = vms
+		ri.Mandatory = boolPtr(false)
+		ri.Enabled = boolPtr(true)
+		ri.Vm = vmRefs
+		s := types.ClusterRuleSpec{}
+		s.Operation = types.ArrayUpdateOperationAdd
 		s.Info = ri.GetClusterRuleInfo()
-		rules = append(rules, s)
+		ruleSpecs = append(ruleSpecs, s)
 	}
-	clusterSpec.RulesSpec = rules
-	cluster.Reconfigure(ctx, clusterSpec, true)
 
-	return nil
+	// remove stale rules
+	for _, r := range rec.Stale {
+		ri := types.ClusterAntiAffinityRuleSpec{}
+		ri.Name = r.Name
+		ri.RuleUuid = r.ID
+		s := types.ClusterRuleSpec{}
+		s.Operation = types.ArrayUpdateOperationRemove
+		s.Info = ri.GetClusterRuleInfo()
+		ruleSpecs = append(ruleSpecs, s)
+	}
+
+	clusterSpec := &types.ClusterConfigSpecEx{
+		RulesSpec: ruleSpecs,
+	}
+	cluster := object.NewClusterComputeResource(c.Client, *clusterRef)
+	fmt.Printf("changes to apply:\n")
+	debug(clusterSpec)
+	task, err := cluster.Reconfigure(ctx, clusterSpec, true)
+	if err != nil {
+		return err
+	}
+	fmt.Println("waiting for cluster reconfig")
+	err = task.Wait(ctx)
+	fmt.Println("completed")
+	return err
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 // State gets the current state of the deployment on vSphere.

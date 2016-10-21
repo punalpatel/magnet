@@ -33,10 +33,10 @@ func Check(ctx context.Context, i IaaS) error {
 	if !IsBalanced(s) {
 		rec := RuleRecommendations(s)
 		rec.PrintReport()
-		// err = i.Converge(ctx, s, rec)
-		// if err != nil {
-		// 	return err
-		// }
+		err = i.Converge(ctx, s, rec)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
