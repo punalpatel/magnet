@@ -89,6 +89,7 @@ func (r *RuleRecommendation) PrintReport() {
 		for i := range r.Stale {
 			writeRule(tw, &r.Stale[i])
 		}
+		tw.Flush()
 	}
 	if len(r.Missing) > 0 {
 		fmt.Fprintln(output, greenSprintf("--ADD--"))
