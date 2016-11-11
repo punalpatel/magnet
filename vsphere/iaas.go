@@ -80,42 +80,35 @@ func (i *IaaS) Converge(ctx context.Context, state *magnet.State, rec *magnet.Ru
 	for _, r := range rec.Missing {
 		vmRefs := make([]types.ManagedObjectReference, len(r.VMs))
 		for i := range r.VMs {
-			vmRefs[i].FromString(r.VMs[i].Reference)
+			vmRefs[i].FromString("VirtualMachine:" + r.VMs[i].Reference)
 		}
-
-		ri := types.ClusterAntiAffinityRuleSpec{}
-		ri.Name = r.Name
-		ri.Mandatory = boolPtr(false)
-		ri.Enabled = boolPtr(true)
-		ri.Vm = vmRefs
-		s := types.ClusterRuleSpec{}
-		s.Operation = types.ArrayUpdateOperationAdd
-		s.Info = ri.GetClusterRuleInfo()
-		ruleSpecs = append(ruleSpecs, s)
+		aaRule := &types.ClusterAntiAffinityRuleSpec{}
+		aaRule.Name = r.Name
+		aaRule.Mandatory = boolPtr(false)
+		aaRule.Enabled = boolPtr(true)
+		aaRule.Vm = vmRefs
+		spec := types.ClusterRuleSpec{}
+		spec.Operation = types.ArrayUpdateOperationAdd
+		spec.Info = aaRule
+		ruleSpecs = append(ruleSpecs, spec)
 	}
 
 	// remove stale rules
 	for _, r := range rec.Stale {
-		ri := types.ClusterAntiAffinityRuleSpec{}
-		ri.Name = r.Name
-		ri.RuleUuid = r.ID
-		s := types.ClusterRuleSpec{}
-		s.Operation = types.ArrayUpdateOperationRemove
-		s.Info = ri.GetClusterRuleInfo()
-		ruleSpecs = append(ruleSpecs, s)
+		spec := types.ClusterRuleSpec{}
+		spec.Operation = types.ArrayUpdateOperationRemove
+		spec.RemoveKey = r.Key
+		ruleSpecs = append(ruleSpecs, spec)
 	}
 
-	clusterSpec := &types.ClusterConfigSpecEx{
-		RulesSpec: ruleSpecs,
-	}
+	clusterSpec := &types.ClusterConfigSpecEx{RulesSpec: ruleSpecs}
 	cluster := object.NewClusterComputeResource(c.Client, *clusterRef)
-	fmt.Printf("changes to apply:\n")
-	debug(clusterSpec)
+
 	task, err := cluster.Reconfigure(ctx, clusterSpec, true)
 	if err != nil {
 		return err
 	}
-	fmt.Println("waiting for cluster reconfig")
+	fmt.Print("waiting for cluster reconfig...")
 	err = task.Wait(ctx)
 	fmt.Println("completed")
 	return err
@@ -275,6 +268,7 @@ func (c *collector) toState(ctx context.Context, client *govmomi.Client) (*magne
 			rule := &magnet.Rule{
 				Name:      aa.Name,
 				ID:        aa.RuleUuid,
+				Key:       aa.Key,
 				Enabled:   ptrToBool(aa.Enabled),
 				Mandatory: ptrToBool(aa.Mandatory),
 				VMs:       []*magnet.VM{},

@@ -37,6 +37,7 @@ type Host struct {
 type Rule struct {
 	Name      string
 	ID        string
+	Key       int32
 	Enabled   bool
 	Mandatory bool
 	VMs       []*VM
